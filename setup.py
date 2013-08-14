@@ -8,7 +8,7 @@ setup(
     description='pure python jks file parser',
     license="MIT",
     url="http://github.com/doublereedkurt/pyjks",
-    long_description='...',
+    long_description=open('README.md').read(),
     classifiers=[
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',
