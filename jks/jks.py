@@ -13,8 +13,8 @@ from pyasn1.codec.ber import decoder
 
 
 class KeyStore(object):
-    def __init__(self, private_key, certs):
-        self.private_key = private_key
+    def __init__(self, private_keys, certs):
+        self.private_keys = private_keys
         self.certs = certs
 
     @classmethod
@@ -33,7 +33,7 @@ class KeyStore(object):
             raise ValueError('only jks format v2 supported (got v'+repr(version)+')')
         entry_count = b4.unpack_from(data, 8)[0]
         pos = 12
-        private_key = None
+        private_keys = []
         certs = []
 
         for i in range(entry_count):
@@ -59,8 +59,8 @@ class KeyStore(object):
                                      " identifier: {0}".format(algo_id))
                 plaintext = _sun_pkey_decrypt(asn1_data[0][1].asOctets(), password)
                 key = decoder.decode(plaintext)[0][2].asOctets()
-                private_key = PrivateKey(
-                    alias, timestamp, key, cert_chain)
+                private_keys.append(PrivateKey(
+                    alias, timestamp, key, cert_chain))
             elif tag == 2:  # cert
                 cert_type, pos = _read_utf(data, pos)
                 cert_data, pos = _read_data(data, pos)
@@ -69,7 +69,7 @@ class KeyStore(object):
         if hashlib.sha1(password + SIGNATURE + data[:pos]).digest() != data[pos:]:
             raise ValueError("Hash mismatch; incorrect password or data corrupted")
 
-        return cls(private_key, certs)
+        return cls(private_keys, certs)
 
 
 Cert = collections.namedtuple("Cert", "alias timestamp type cert")

@@ -16,7 +16,7 @@ def jksfile2context(jks_file, passphrase):
     trusted_certs = [OpenSSL.crypto.load_certificate(_ASN1, cert.cert)
                      for cert in keystore.certs]
     public_cert = OpenSSL.crypto.load_certificate(
-        _ASN1, keystore.private_key.cert_chain[0][1])
+        _ASN1, keystore.private_keys[0].cert_chain[0][1])
 
     ctx = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_METHOD)
     ctx.use_privatekey(pkey)
