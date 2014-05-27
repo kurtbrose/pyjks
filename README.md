@@ -3,7 +3,35 @@ pyjks
 
 A pure python Java KeyStore file parser, including private key decryption.
 
-Usage example (transforming an encrypted jks file into an OpenSSL context):
+Usage examples:
+
+Reading a JKS or JCEKS keystore and dumping out its contents in the PEM format:
+```
+import sys, base64, textwrap
+import jks
+
+def print_pem(data, type):
+    print "-----BEGIN %s-----" % type
+    print "\r\n".join(textwrap.wrap(base64.b64encode(data), 64))
+    print "-----END %s-----" % type
+
+ks = jks.KeyStore.load("keystore.jks", "XXXXXXXX")
+
+for pk in ks.private_keys:
+    print "Private key: %s" % pk.alias
+    print_pem(pk.pkey, "RSA PRIVATE KEY")
+    for c in pk.cert_chain:
+        print_pem(c[1], "CERTIFICATE")
+    print
+
+for c in ks.certs:
+    print "Certificate: %s" % c.alias
+    print_pem(c.cert, "CERTIFICATE")
+    print
+```
+
+
+Transforming an encrypted JKS/JCEKS file into an OpenSSL context):
 ```python
 import OpenSSL
 import jks
