@@ -93,7 +93,7 @@ class KeyStore(object):
                 # TODO: implement me
 
         # the keystore integrity check uses the UTF-16BE encoding of the password
-        password_utf16 = ''.join([b'\0'+c for c in password])
+        password_utf16 = password.encode('utf-16be')
         if hashlib.sha1(password_utf16 + SIGNATURE_WHITENING + data[:pos]).digest() != data[pos:]:
             raise ValueError("Hash mismatch; incorrect password or data corrupted")
 
