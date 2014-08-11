@@ -20,5 +20,5 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     packages=['jks'],
-    requires=['pyasn1'],
+    install_requires=['pyasn1'],
 )
