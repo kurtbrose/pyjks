@@ -66,4 +66,3 @@ This is better:
 1-  no security concerns in passwords going into command line arguments, or unencrypted files being left around
 
 2-  no dependency on a JVM
-
