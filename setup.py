@@ -8,7 +8,7 @@ with open(readme_path) as f:
 
 setup(
     name='pyjks',
-    version='0.1',
+    version='0.2',
     author="Kurt Rose",
     author_email="kurt@kurtrose.com",
     description='pure python jks file parser',
