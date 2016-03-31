@@ -14,6 +14,7 @@ setup(
     author="Kurt Rose",
     author_email="kurt@kurtrose.com",
     description='pure python jks file parser',
+    keywords="JKS JCEKS java keystore"
     license="MIT",
     url="http://github.com/doublereedkurt/pyjks",
     long_description=long_description,
@@ -22,5 +23,5 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     packages=['jks'],
-    install_requires=['pyasn1'],
+    install_requires=['pyasn1', 'javaobj-py3'],
 )
