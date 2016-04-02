@@ -10,7 +10,7 @@ except:
 
 setup(
     name='pyjks',
-    version='0.3.0.1',
+    version='0.3.1',
     author="Kurt Rose",
     author_email="kurt@kurtrose.com",
     description='pure python jks file parser',
