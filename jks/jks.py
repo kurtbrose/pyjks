@@ -286,9 +286,16 @@ def _sun_jce_pbe_decrypt(data, password, salt, iteration_count):
     return result
 
 def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
-    # Note: unlike JKS, the JCE algorithm uses an ASCII?/UTF-8? string for the password, not a regular Java/UTF-16BE string; no need to double up on the password bytes
     if len(salt) != 8:
-        raise ValueError("Expected 8-byte salt for JCE private key encryption algorithm (OID %s), found %d bytes" % (".".join(str(i) for i in SUN_JCE_ALGO_ID), len(salt)))
+        raise ValueError("Expected 8-byte salt for PBEWithMD5AndTripleDES (OID %s), found %d bytes" % (".".join(str(i) for i in SUN_JCE_ALGO_ID), len(salt)))
+
+    # Note: unlike JKS, the PBEWithMD5AndTripleDES algorithm as implemented for JCE keystores uses an ASCII string for the password, not a regular Java/UTF-16BE string.
+    # It validates this explicitly and will throw an InvalidKeySpecException if non-ASCII byte codes are present in the password.
+    # See PBEKey's constructor in com/sun/crypto/provider/PBEKey.java.
+    try:
+        password.encode('ascii')
+    except (UnicodeDecodeError, UnicodeEncodeError):
+        raise ValueError("Key password contains non-ASCII characters")
 
     salt_halves = [salt[0:4], salt[4:8]]
     if salt_halves[0] == salt_halves[1]:
