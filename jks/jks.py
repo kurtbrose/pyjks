@@ -15,6 +15,22 @@ import StringIO
 import javaobj
 from pyasn1.codec.ber import decoder
 
+Cert = collections.namedtuple("Cert", "alias timestamp type cert")
+PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey cert_chain")
+SecretKey = collections.namedtuple("SecretKey", "alias timestamp algorithm key size")
+
+b8 = struct.Struct('>Q')
+b4 = struct.Struct('>L')
+b2 = struct.Struct('>H')
+b1 = struct.Struct('B')
+
+MAGIC_NUMBER_JKS = b4.pack(0xFEEDFEED)
+MAGIC_NUMBER_JCEKS = b4.pack(0xCECECECE)
+VERSION = b4.pack(2)
+SIGNATURE_WHITENING = b"Mighty Aphrodite"
+SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
+SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
+
 class KeyStore(object):
     def __init__(self, private_keys, certs, secret_keys):
         self.private_keys = private_keys
@@ -37,13 +53,13 @@ class KeyStore(object):
         else:
             raise ValueError('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
 
-        private_keys = []
-        secret_keys = []
-        certs = []
-
         version = b4.unpack_from(data, 4)[0]
         if version != 2:
             raise ValueError('Unsupported keystore version; only v2 supported, found v'+repr(version))
+
+        private_keys = []
+        secret_keys = []
+        certs = []
 
         entry_count = b4.unpack_from(data, 8)[0]
         pos = 12
@@ -82,7 +98,10 @@ class KeyStore(object):
                         # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
                         salt = asn1_data[0][0][1][0].asOctets()
                         iteration_count = int(asn1_data[0][0][1][1])
-                        plaintext = _sun_jce_pkey_decrypt(encrypted_private_key, password, salt, iteration_count)
+                        try:
+                            plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, password, salt, iteration_count)
+                        except BadPaddingException:
+                            raise ValueError("Failed to decrypt data for private key '%s'; bad password?" % alias)
                     else:
                         raise ValueError("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
 
@@ -94,7 +113,7 @@ class KeyStore(object):
                 cert_data, pos = _read_data(data, pos)
                 certs.append(Cert(alias, timestamp, cert_type, cert_data))
 
-            elif tag == 3:
+            elif tag == 3: # secret key
                 if filetype != 'jceks':
                     raise ValueError("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
 
@@ -139,7 +158,10 @@ class KeyStore(object):
                 if sealed_obj.paramsAlg == "PBEWithMD5AndTripleDES" and sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
                     salt = params_asn1[0][0].asOctets()
                     iteration_count = int(params_asn1[0][1])
-                    plaintext = _sun_jce_pkey_decrypt(sealed_obj.encryptedContent, password, salt, iteration_count)
+                    try:
+                        plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, password, salt, iteration_count)
+                    except BadPaddingException:
+                        raise ValueError("Failed to decrypt data for secret key '%s'; bad password?" % alias)
                 else:
                     raise ValueError("Unexpected sealAlg and paramsAlg combination: sealAlg=%s, paramsAlg=%s" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
 
@@ -188,22 +210,6 @@ class KeyStore(object):
 
         return cls(private_keys, certs, secret_keys)
 
-Cert = collections.namedtuple("Cert", "alias timestamp type cert")
-PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey cert_chain")
-SecretKey = collections.namedtuple("SecretKey", "alias timestamp algorithm key size")
-
-b8 = struct.Struct('>Q')
-b4 = struct.Struct('>L')
-b2 = struct.Struct('>H')
-b1 = struct.Struct('B')
-
-MAGIC_NUMBER_JKS = b4.pack(0xFEEDFEED)
-MAGIC_NUMBER_JCEKS = b4.pack(0xCECECECE)
-VERSION = b4.pack(2)
-SIGNATURE_WHITENING = b"Mighty Aphrodite"
-SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
-SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
-
 def _java_instanceof(obj, class_name):
     """Given a deserialized JavaObject as returned by the javaobj library, determine whether it's a subclass of the given class name."""
     clazz = obj.get_class()
@@ -232,6 +238,13 @@ def _read_data(data, pos):
     pos += 4
     return data[pos:pos+size], pos+size
 
+def _read_java_obj(data, pos):
+    data_stream = StringIO.StringIO(data[pos:])
+    obj = javaobj.load(data_stream)
+    obj_size = data_stream.tell()
+
+    return obj, pos + obj_size
+
 def _sun_jks_pkey_decrypt(data, password):
     'implements private key crypto algorithm used by JKS files'
     password = ''.join([b'\0'+c.encode('latin-1') for c in password]) # the JKS algorithm uses a regular Java UTF16-BE string for the password, so insert 0 bytes
@@ -250,19 +263,9 @@ def _jks_keystream(iv, password):
         for byte in cur:
             yield byte
 
-def _sun_jce_pkey_decrypt(data, password, salt, iteration_count):
-    key, iv = _sun_jce_derive_cipher_key_iv(password, salt, iteration_count)
-
-    from Crypto.Cipher import DES3
-    des3 = DES3.new(key, DES3.MODE_CBC, IV=iv)
-    padded = des3.decrypt(data)
-
-    result = _strip_pkcs5_padding(padded)
-    return result
-
-def _sun_jce_derive_cipher_key_iv(password, salt, iteration_count):
-    '''
-    PKCS#8-formatted private key with a proprietary password-based encryption algorithm.
+def _sun_jce_pbe_decrypt(data, password, salt, iteration_count):
+    """
+    Decrypts Sun's custom PBEWithMD5AndTripleDES password-based encryption scheme.
     It is based on password-based encryption as defined by the PKCS #5 standard, except that it uses triple DES instead of DES.
     Here's how this algorithm works:
       1. Create random salt and split it in two halves. If the two halves are identical, invert one of them.
@@ -272,7 +275,17 @@ def _sun_jce_derive_cipher_key_iv(password, salt, iteration_count):
       4. After c iterations, use the 2 resulting digests as follows: The 16 bytes of the first digest and the 1st 8 bytes of the 2nd digest
          form the triple DES key, and the last 8 bytes of the 2nd digest form the IV.
     See http://grepcode.com/file/repository.grepcode.com/java/root/jdk/openjdk/6-b27/com/sun/crypto/provider/PBECipherCore.java#PBECipherCore.deriveCipherKey%28java.security.Key%29
-    '''
+    """
+    key, iv = _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count)
+
+    from Crypto.Cipher import DES3
+    des3 = DES3.new(key, DES3.MODE_CBC, IV=iv)
+    padded = des3.decrypt(data)
+
+    result = _strip_pkcs5_padding(padded)
+    return result
+
+def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     # Note: unlike JKS, the JCE algorithm uses an ASCII?/UTF-8? string for the password, not a regular Java/UTF-16BE string; no need to double up on the password bytes
     if len(salt) != 8:
         raise ValueError("Expected 8-byte salt for JCE private key encryption algorithm (OID %s), found %d bytes" % (".".join(str(i) for i in SUN_JCE_ALGO_ID), len(salt)))
@@ -292,21 +305,16 @@ def _sun_jce_derive_cipher_key_iv(password, salt, iteration_count):
     iv = derived[-8:]
     return key, iv
 
+class BadPaddingException(Exception):
+    pass
+
 def _strip_pkcs5_padding(m):
     # drop PKCS5 padding:  8-(||M|| mod 8) octets each with value 8-(||M|| mod 8)
     last_byte = ord(m[-1:])
     if last_byte <= 0 or last_byte > 8:
-        raise ValueError("Unable to strip PKCS5 padding: invalid padding found")
+        raise BadPaddingException("Unable to strip PKCS5 padding: invalid padding found")
     # the <last_byte> bytes of m must all have value <last_byte>, otherwise something's wrong
     if m[-last_byte:] != chr(last_byte)*last_byte:
-        raise ValueError("Unable to strip PKCS5 padding: invalid padding found")
+        raise BadPaddingException("Unable to strip PKCS5 padding: invalid padding found")
 
     return m[:-last_byte]
-
-def _read_java_obj(data, pos):
-
-    data_stream = StringIO.StringIO(data[pos:])
-    obj = javaobj.load(data_stream)
-    obj_size = data_stream.tell()
-
-    return obj, pos + obj_size
