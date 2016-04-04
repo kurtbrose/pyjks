@@ -28,6 +28,12 @@ for c in ks.certs:
     print "Certificate: %s" % c.alias
     print_pem(c.cert, "CERTIFICATE")
     print
+
+for sk in ks.secret_keys:
+    print "Secret key: %s" % sk.alias
+    print "  Algorithm: %s" % sk.algorithm
+    print "  Key size: %d bits" % sk.size
+    print "  Key: "+(''.join(x.encode('hex') for x in sk.key))
 ```
 
 
