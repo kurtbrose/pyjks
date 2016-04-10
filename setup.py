@@ -1,5 +1,8 @@
-from distutils.core import setup
 import os
+try:
+    from setuptools import setup
+except ImportError:
+    from distutils.core import setup
 
 try:
     readme_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'README.md')
@@ -10,10 +13,11 @@ except:
 
 setup(
     name='pyjks',
-    version='0.3.0.1',
+    version='0.3.1',
     author="Kurt Rose",
     author_email="kurt@kurtrose.com",
     description='pure python jks file parser',
+    keywords="JKS JCEKS java keystore",
     license="MIT",
     url="http://github.com/doublereedkurt/pyjks",
     long_description=long_description,
@@ -22,5 +26,6 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     packages=['jks'],
-    install_requires=['pyasn1'],
+    install_requires=['pyasn1', 'javaobj-py3'],
+    test_suite="tests.test_jks",
 )

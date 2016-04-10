@@ -1,1 +1,2 @@
 pyasn1==0.1.7
+javaobj-py3==0.1.1
