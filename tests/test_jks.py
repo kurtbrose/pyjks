@@ -39,14 +39,12 @@ class AbstractTest(unittest.TestCase):
         return None
 
 class JceksTests(AbstractTest):
+    """Note: run 'mvn test' in the tests/java directory to reproduce keystore files (requires a working Maven installation)"""
     @classmethod
     def setUpClass(cls):
         # Note: cwd is expected to be in the top-level pyjks directory
         test_dir = os.path.dirname(__file__)
         java_path = os.path.join(test_dir, "java")
-        with cd(java_path):
-            subprocess.call(["mvn", "test"])
-        # back at the top-level pyjks directory
 
     def test_empty_store(self):
         store = jks.KeyStore.load("tests/keystores/jceks/empty.jceks", "")
