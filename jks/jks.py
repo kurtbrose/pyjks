@@ -197,7 +197,7 @@ class KeyStore(object):
                     key_size = len(key_bytes)*8
                     secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
                 else:
-                    raise ValueError("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % obj['_name'])
+                    raise ValueError("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % obj.get_class().name)
 
             else:
                 raise ValueError("Unexpected keystore entry tag %d", tag)
