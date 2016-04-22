@@ -77,11 +77,11 @@ public class JceKeystoreGeneratorTest
 	@Test
 	public void jceks_PBKDF2() throws Exception
 	{
-		PBEKeySpec keySpec = new PBEKeySpec("CCC".toCharArray(), new byte[]{1,2,3,4,5,6,7,8}, 999, 256);
-		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA512");
+		PBEKeySpec keySpec = new PBEKeySpec("fibonacci".toCharArray(), new byte[]{1,1,2,3,5,8,13,21}, 999, 256);
+		SecretKeyFactory factory = SecretKeyFactory.getInstance("PBKDF2WithHmacSHA1");
 		SecretKey key = factory.generateSecret(keySpec);
 
-		generateSecretKeyStore("../keystores/jceks/PBKDF2.jceks", key);
+		generateSecretKeyStore("../keystores/jceks/PBKDF2WithHmacSHA1.jceks", key);
 	}
 
 	@Test

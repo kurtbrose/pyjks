@@ -39,14 +39,12 @@ class AbstractTest(unittest.TestCase):
         return None
 
 class JceksTests(AbstractTest):
+    """Note: run 'mvn test' in the tests/java directory to reproduce keystore files (requires a working Maven installation)"""
     @classmethod
     def setUpClass(cls):
         # Note: cwd is expected to be in the top-level pyjks directory
         test_dir = os.path.dirname(__file__)
         java_path = os.path.join(test_dir, "java")
-        with cd(java_path):
-            subprocess.call(["mvn", "test"])
-        # back at the top-level pyjks directory
 
     def test_empty_store(self):
         store = jks.KeyStore.load("tests/keystores/jceks/empty.jceks", "")
@@ -73,6 +71,11 @@ class JceksTests(AbstractTest):
         store = jks.KeyStore.load("tests/keystores/jceks/AES256.jceks", "12345678")
         sk = self.find_secret_key(store, "mykey")
         self.assertEqual(sk.key, "\xe7\xd7\xc2\x62\x66\x82\x21\x78\x7b\x6b\x5a\x0f\x68\x77\x12\xfd\xe4\xbe\x52\xe9\xe7\xd7\xc2\x62\x66\x82\x21\x78\x7b\x6b\x5a\x0f")
+
+    def test_pbkdf2_hmac_sha1(self):
+        store = jks.KeyStore.load("tests/keystores/jceks/PBKDF2WithHmacSHA1.jceks", "12345678")
+        sk = self.find_secret_key(store, "mykey")
+        self.assertEqual(sk.key, "\x57\x95\x36\xd9\xa2\x7f\x7e\x31\x4e\xf4\xe3\xff\xa5\x76\x26\xef\xe6\x70\xe8\xf4\xd2\x96\xcd\x31\xba\x1a\x82\x7d\x9a\x3b\x1e\xe1")
 
 if __name__ == "__main__":
     unittest.main()
