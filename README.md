@@ -1,9 +1,16 @@
 pyjks
 =====
 
-A pure python Java KeyStore file parser, including private key decryption.
+A pure python Java KeyStore file parser, including private/secret key decryption. Can read both JKS and JCEKS key stores.
 
-Usage examples:
+## Requirements:
+
+ * Python 2.6+ (no Python 3 support yet)
+ * pyasn1 0.1.7+
+ * javaobj-py3 0.1.1+
+ * pycrypto, if you need to read JCEKS keystores
+
+## Usage examples:
 
 Reading a JKS or JCEKS keystore and dumping out its contents in the PEM format:
 ```
