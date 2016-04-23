@@ -46,7 +46,7 @@ _ASN1 = OpenSSL.crypto.FILETYPE_ASN1
 
 def jksfile2context(jks_file, passphrase):
     keystore = jks.KeyStore.load(jks_file, passphrase)
-    pkey = OpenSSL.crypto.load_privatekey(_ASN1, keystore.private_key.pkey)
+    pkey = OpenSSL.crypto.load_privatekey(_ASN1, keystore.private_keys[0].pkey)
     trusted_certs = [OpenSSL.crypto.load_certificate(_ASN1, cert.cert)
                      for cert in keystore.certs]
     public_cert = OpenSSL.crypto.load_certificate(
