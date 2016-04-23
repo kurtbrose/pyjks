@@ -26,7 +26,11 @@ ks = jks.KeyStore.load("keystore.jks", "XXXXXXXX")
 
 for pk in ks.private_keys:
     print "Private key: %s" % pk.alias
-    print_pem(pk.pkey, "RSA PRIVATE KEY")
+    if pk.algorithm_oid == jks.RSA_ENCRYPTION_OID:
+        print_pem(pk.pkey, "RSA PRIVATE KEY")
+    else:
+        print_pem(pk.pkey_pkcs8, "PRIVATE KEY")
+
     for c in pk.cert_chain:
         print_pem(c[1], "CERTIFICATE")
     print

@@ -16,7 +16,7 @@ import javaobj
 from pyasn1.codec.ber import decoder
 
 Cert = collections.namedtuple("Cert", "alias timestamp type cert")
-PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey cert_chain")
+PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey_pkcs8 algorithm_oid pkey cert_chain")
 SecretKey = collections.namedtuple("SecretKey", "alias timestamp algorithm key size")
 
 b8 = struct.Struct('>Q')
@@ -30,6 +30,7 @@ VERSION = b4.pack(2)
 SIGNATURE_WHITENING = b"Mighty Aphrodite"
 SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
 SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
+RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
 
 class KeystoreException(Exception):
     pass
@@ -99,10 +100,10 @@ class KeyStore(object):
                     cert_data, pos = _read_data(data, pos)
                     cert_chain.append((cert_type, cert_data))
 
-                # at this point, ber_data is a PKCS#8 EncryptedPrivateKeyInfo
-                asn1_data = decoder.decode(ber_data)
-                algo_id = asn1_data[0][0][0].asTuple()
-                encrypted_private_key = asn1_data[0][1].asOctets()
+                # at this point, 'ber_data' is a PKCS#8 EncryptedPrivateKeyInfo (see RFC 5208)
+                encrypted_info = decoder.decode(ber_data)[0]
+                algo_id = encrypted_info[0][0].asTuple()
+                encrypted_private_key = encrypted_info[1].asOctets()
 
                 if filetype == 'jks':
                     if algo_id != SUN_JKS_ALGO_ID:
@@ -114,8 +115,8 @@ class KeyStore(object):
                         plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
                     elif algo_id == SUN_JCE_ALGO_ID:
                         # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
-                        salt = asn1_data[0][0][1][0].asOctets()
-                        iteration_count = int(asn1_data[0][0][1][1])
+                        salt = encrypted_info[0][1][0].asOctets()
+                        iteration_count = int(encrypted_info[0][1][1])
                         try:
                             plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, password, salt, iteration_count)
                         except BadPaddingException:
@@ -123,8 +124,11 @@ class KeyStore(object):
                     else:
                         raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
 
-                key = decoder.decode(plaintext)[0][2].asOctets()
-                private_keys.append(PrivateKey(alias, timestamp, key, cert_chain))
+                # at this point, 'plaintext' is a PKCS#8 PrivateKeyInfo (see RFC 5208)
+                private_key_info = decoder.decode(plaintext)[0]
+                key = private_key_info[2].asOctets()
+                algorithm_oid = private_key_info[1][0].asTuple()
+                private_keys.append(PrivateKey(alias, timestamp, plaintext, algorithm_oid, key, cert_chain))
 
             elif tag == 2:  # cert
                 cert_type, pos = _read_utf(data, pos)
