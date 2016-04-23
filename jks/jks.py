@@ -32,23 +32,12 @@ SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protectio
 SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
 RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
 
-class KeystoreException(Exception):
-    pass
-
-class BadKeystoreFormatException(KeystoreException):
-    pass
-
-class UnsupportedKeystoreFormatException(KeystoreException):
-    pass
-
-class BadPaddingException(KeystoreException):
-    pass
-
-class UnexpectedJavaTypeException(KeystoreException):
-    pass
-
-class UnexpectedAlgorithmException(KeystoreException):
-    pass
+class KeystoreException(Exception): pass
+class BadKeystoreFormatException(KeystoreException): pass
+class UnsupportedKeystoreFormatException(KeystoreException): pass
+class BadPaddingException(KeystoreException): pass
+class UnexpectedJavaTypeException(KeystoreException): pass
+class UnexpectedAlgorithmException(KeystoreException): pass
 
 class KeyStore(object):
     def __init__(self, private_keys, certs, secret_keys):
@@ -169,23 +158,27 @@ class KeyStore(object):
                 if not _java_instanceof(sealed_obj, "javax.crypto.SealedObject"):
                     raise UnexpectedJavaTypeException("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
 
-                sealed_obj.encodedParams = _java_bytestring(sealed_obj.encodedParams)
                 sealed_obj.encryptedContent = _java_bytestring(sealed_obj.encryptedContent)
 
-                salt = 0
-                iteration_count = 0
                 plaintext = ""
+                if sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
+                    # if the object was sealed with PBEWithMD5AndTripleDES then the parameters should apply to the same algorithm and not be empty or null
+                    if sealed_obj.paramsAlg != sealed_obj.sealAlg:
+                        raise UnexpectedAlgorithmException("Unexpected parameters algorithm used in SealedObject; should match sealing algorithm '%s' but found '%s'" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
+                    if sealed_obj.encodedParams is None or len(sealed_obj.encodedParams) == 0:
+                        raise UnexpectedJavaTypeException("No parameters found in SealedObject instance for sealing algorithm '%s'; need at least a salt and iteration count to decrypt" % sealed_obj.sealAlg)
 
-                params_asn1 = decoder.decode(sealed_obj.encodedParams)
-                if sealed_obj.paramsAlg == "PBEWithMD5AndTripleDES" and sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
-                    salt = params_asn1[0][0].asOctets()
-                    iteration_count = int(params_asn1[0][1])
+                    sealed_obj.encodedParams = _java_bytestring(sealed_obj.encodedParams)
+
+                    params_asn1 = decoder.decode(sealed_obj.encodedParams)[0]
+                    salt = params_asn1[0].asOctets()
+                    iteration_count = int(params_asn1[1])
                     try:
                         plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, password, salt, iteration_count)
                     except BadPaddingException:
                         raise ValueError("Failed to decrypt data for secret key '%s'; bad password?" % alias)
                 else:
-                    raise UnexpectedAlgorithmException("Unexpected sealAlg and paramsAlg combination: sealAlg=%s, paramsAlg=%s" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
+                    raise UnexpectedAlgorithmException("Unexpected algorithm used for encrypting SealedObject: sealAlg=%s" % sealed_obj.sealAlg)
 
                 # The plaintext here is another serialized Java object; this time it's an object implementing the javax.crypto.SecretKey interface.
                 # When using the default SunJCE provider, these are usually either javax.crypto.spec.SecretKeySpec objects, or some other specialized ones
