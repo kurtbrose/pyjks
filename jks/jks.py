@@ -31,6 +31,24 @@ SIGNATURE_WHITENING = b"Mighty Aphrodite"
 SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
 SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
 
+class KeystoreException(Exception):
+    pass
+
+class BadKeystoreFormatException(KeystoreException):
+    pass
+
+class UnsupportedKeystoreFormatException(KeystoreException):
+    pass
+
+class BadPaddingException(KeystoreException):
+    pass
+
+class UnexpectedJavaTypeException(KeystoreException):
+    pass
+
+class UnexpectedAlgorithmException(KeystoreException):
+    pass
+
 class KeyStore(object):
     def __init__(self, private_keys, certs, secret_keys):
         self.private_keys = private_keys
@@ -51,11 +69,11 @@ class KeyStore(object):
         elif magic_number == MAGIC_NUMBER_JCEKS:
             filetype = 'jceks'
         else:
-            raise ValueError('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
+            raise BadKeystoreFormatException('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
 
         version = b4.unpack_from(data, 4)[0]
         if version != 2:
-            raise ValueError('Unsupported keystore version; only v2 supported, found v'+repr(version))
+            raise UnsupportedKeystoreFormatException('Unsupported keystore version; only v2 supported, found v'+repr(version))
 
         private_keys = []
         secret_keys = []
@@ -88,7 +106,7 @@ class KeyStore(object):
 
                 if filetype == 'jks':
                     if algo_id != SUN_JKS_ALGO_ID:
-                        raise ValueError("Unknown JKS private key algorithm OID: {0}".format(algo_id))
+                        raise UnexpectedAlgorithmException("Unknown JKS private key algorithm OID: {0}".format(algo_id))
                     plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
 
                 elif filetype == 'jceks':
@@ -103,7 +121,7 @@ class KeyStore(object):
                         except BadPaddingException:
                             raise ValueError("Failed to decrypt data for private key '%s'; bad password?" % alias)
                     else:
-                        raise ValueError("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
+                        raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
 
                 key = decoder.decode(plaintext)[0][2].asOctets()
                 private_keys.append(PrivateKey(alias, timestamp, key, cert_chain))
@@ -115,7 +133,7 @@ class KeyStore(object):
 
             elif tag == 3: # secret key
                 if filetype != 'jceks':
-                    raise ValueError("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
+                    raise BadKeystoreFormatException("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
 
                 # SecretKeys are stored in the key store file through Java's serialization mechanism, i.e. as an actual serialized Java object
                 # embedded inside the file. The objects that get stored are not the SecretKey instances themselves though, as that would trivially
@@ -145,7 +163,7 @@ class KeyStore(object):
 
                 sealed_obj, pos = _read_java_obj(data, pos)
                 if not _java_instanceof(sealed_obj, "javax.crypto.SealedObject"):
-                    raise ValueError("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
+                    raise UnexpectedJavaTypeException("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
 
                 sealed_obj.encodedParams = _java_bytestring(sealed_obj.encodedParams)
                 sealed_obj.encryptedContent = _java_bytestring(sealed_obj.encryptedContent)
@@ -163,7 +181,7 @@ class KeyStore(object):
                     except BadPaddingException:
                         raise ValueError("Failed to decrypt data for secret key '%s'; bad password?" % alias)
                 else:
-                    raise ValueError("Unexpected sealAlg and paramsAlg combination: sealAlg=%s, paramsAlg=%s" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
+                    raise UnexpectedAlgorithmException("Unexpected sealAlg and paramsAlg combination: sealAlg=%s, paramsAlg=%s" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
 
                 # The plaintext here is another serialized Java object; this time it's an object implementing the javax.crypto.SecretKey interface.
                 # When using the default SunJCE provider, these are usually either javax.crypto.spec.SecretKeySpec objects, or some other specialized ones
@@ -180,6 +198,7 @@ class KeyStore(object):
                     key_bytes = _java_bytestring(obj.key)
                     key_size = len(key_bytes)*8
                     secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
+
                 elif clazz.name == "java.security.KeyRep":
                     assert obj.type == "SECRET", "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type
                     key_algorithm = obj.algorithm
@@ -197,10 +216,10 @@ class KeyStore(object):
                     key_size = len(key_bytes)*8
                     secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
                 else:
-                    raise ValueError("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % obj.get_class().name)
+                    raise UnexpectedJavaTypeException("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % clazz.name)
 
             else:
-                raise ValueError("Unexpected keystore entry tag %d", tag)
+                raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
 
         # the keystore integrity check uses the UTF-16BE encoding of the password
         password_utf16 = password.encode('utf-16be')
@@ -311,9 +330,6 @@ def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     key = derived[:-8] # = 24 bytes
     iv = derived[-8:]
     return key, iv
-
-class BadPaddingException(Exception):
-    pass
 
 def _strip_pkcs5_padding(m):
     # drop PKCS5 padding:  8-(||M|| mod 8) octets each with value 8-(||M|| mod 8)
