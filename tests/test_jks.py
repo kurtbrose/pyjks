@@ -129,5 +129,15 @@ class JceksTests(AbstractTest):
         self.assertEqual(len(pk.cert_chain), 1)
         self.assertEqual(pk.cert_chain[0][1], expected_cert)
 
+    def test_unknown_type_of_sealed_object(self):
+        """Verify that an exception is raised when encountering a (serialized) Java object inside a SecretKey entry that is not of type javax.crypto.SealedObject"""
+        self.assertRaises(jks.UnexpectedJavaTypeException, lambda: \
+            jks.KeyStore.load("tests/keystores/jceks/unknown_type_of_sealed_object.jceks", "12345678"))
+
+    def test_unknown_type_inside_sealed_object(self):
+        """Verify that an exception is raised when encountering a (serialized) Java object inside of a SealedObject in a SecretKey entry (after decryption) that is not of a recognized/supported type"""
+        self.assertRaises(jks.UnexpectedJavaTypeException, lambda: \
+            jks.KeyStore.load("tests/keystores/jceks/unknown_type_inside_sealed_object.jceks", "12345678"))
+
 if __name__ == "__main__":
     unittest.main()

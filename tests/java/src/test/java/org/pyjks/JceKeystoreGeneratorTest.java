@@ -4,11 +4,14 @@ import java.io.File;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.cert.Certificate;
+import javax.crypto.Cipher;
+import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.DESKeySpec;
 import javax.crypto.spec.DESedeKeySpec;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.PBEParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FileUtils;
@@ -82,6 +85,37 @@ public class JceKeystoreGeneratorTest extends PyJksTestCase
 		Certificate cert = createSelfSignedCertificate(keyPair, "CN=RSA1024");
 
 		generatePrivateKeyStore("../keystores/jceks/RSA1024.jceks", keyPair.getPrivate(), new Certificate[] { cert });
+	}
+
+	@Test
+	public void jceks_unknown_type_of_sealed_object() throws Exception
+	{
+		// create a keystore with a SecretKeyEntry that has a serialized object inside of it that is *not* of type javax.crypto.SealedObject
+		String filename = "../keystores/jceks/unknown_type_of_sealed_object.jceks";
+		String alias = "mykey";
+		String password = "12345678";
+
+		generateManualSealedObjectStore(filename, password, alias, new DummyObject());
+	}
+
+	@Test
+	public void jceks_unknown_type_inside_sealed_object() throws Exception
+	{
+		// create a keystore with a SecretKeyEntry with a proper SealedObject instance, but with an unexpected Java type encrypted inside the SealedObject
+		String filename = "../keystores/jceks/unknown_type_inside_sealed_object.jceks";
+		String alias = "mykey";
+		String password = "12345678";
+
+		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(new byte[]{83, 79, 95, 83, 65, 76, 84, 89}, 42);
+		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
+		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+
+		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
+		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+
+		SealedObject so = new SealedObject(new DummyObject(), cipher);
+		generateManualSealedObjectStore(filename, password, alias, so);
 	}
 
 }
