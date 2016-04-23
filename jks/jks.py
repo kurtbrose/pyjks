@@ -165,7 +165,7 @@ class KeyStore(object):
                 #   private String paramsAlg;                # The algorithm of the parameters used.
                 #   protected byte[] encodedParams;          # The cryptographic parameters used by the sealing Cipher, encoded in the default format.
 
-                sealed_obj, pos = _read_java_obj(data, pos)
+                sealed_obj, pos = _read_java_obj(data, pos, ignore_remaining_data=True)
                 if not _java_instanceof(sealed_obj, "javax.crypto.SealedObject"):
                     raise UnexpectedJavaTypeException("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
 
@@ -204,7 +204,7 @@ class KeyStore(object):
                     secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
 
                 elif clazz.name == "java.security.KeyRep":
-                    assert obj.type == "SECRET", "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type
+                    assert (obj.type.constant == "SECRET"), "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type.constant
                     key_algorithm = obj.algorithm
                     key_encoding = obj.format
                     key_bytes = _java_bytestring(obj.encoded)
@@ -261,9 +261,9 @@ def _read_data(data, pos):
     pos += 4
     return data[pos:pos+size], pos+size
 
-def _read_java_obj(data, pos):
+def _read_java_obj(data, pos, ignore_remaining_data=False):
     data_stream = StringIO.StringIO(data[pos:])
-    obj = javaobj.load(data_stream)
+    obj = javaobj.load(data_stream, ignore_remaining_data=ignore_remaining_data)
     obj_size = data_stream.tell()
 
     return obj, pos + obj_size
