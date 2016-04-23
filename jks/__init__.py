@@ -1,1 +1,1 @@
-from jks import *
+from .jks import *

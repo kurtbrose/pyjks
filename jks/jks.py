@@ -1,21 +1,30 @@
 # vim: set et ai ts=4 sts=4 sw=4:
-'''
+"""
 JKS/JCEKS file format decoder.
-Use in conjunction with PyOpenSSL to translate to PEM, or load private key and certs
-directly into openssl structs and wrap sockets.
+Use in conjunction with PyOpenSSL to translate to PEM, or load private key and certs directly into openssl structs and wrap sockets.
 
-See http://grepcode.com/file/repository.grepcode.com/java/root/jdk/openjdk/6-b14/sun/security/provider/JavaKeyStore.java#JavaKeyStore.engineLoad%28java.io.InputStream%2Cchar%5B%5D%29
-See http://grepcode.com/file/repository.grepcode.com/java/root/jdk/openjdk/6-b27/com/sun/crypto/provider/JceKeyStore.java#JceKeyStore
-'''
+Notes on Python2/3 compatibility:
+  - Whereever possible, we rely on the 'natural' byte string representation of each Python version, i.e. 'str' in Python2 and 'bytes' in Python3.
+    Python2.6+ aliases the 'bytes' type to 'str', so we can universally write bytes(...) or b"" to get each version's natural byte string representation.
+    The libraries we interact with are written to expect these natural types in their respective Py2/Py3 versions, so this works well.
+
+    Things get slightly more complicated when we need to manipulate individual bytes from a byte string. str[x] returns a 'str' in Python2 and an
+    'int' in Python3. You can't do 'int' operations on a 'str' and vice-versa, so we need some form of common data type.
+    We use bytearray() for this purpose; in both Python2 and Python3, this will return individual elements as an 'int'.
+"""
 import struct
 import ctypes
 import hashlib
 import collections
-import StringIO
 import javaobj
 from pyasn1.codec.ber import decoder
 from pyasn1_modules import rfc5208
 from . import rfc2898
+
+try:
+    from StringIO import StringIO as BytesIO # python 2
+except ImportError:
+    from io import BytesIO # python3
 
 Cert = collections.namedtuple("Cert", "alias timestamp type cert")
 PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey_pkcs8 algorithm_oid pkey cert_chain")
@@ -257,7 +266,7 @@ def _java_bytestring(java_byte_list):
 def _read_utf(data, pos):
     size = b2.unpack_from(data, pos)[0]
     pos += 2
-    return unicode(data[pos:pos+size], 'utf-8'), pos+size
+    return data[pos:pos+size].decode('utf-8'), pos+size
 
 def _read_data(data, pos):
     size = b4.unpack_from(data, pos)[0]
@@ -265,32 +274,36 @@ def _read_data(data, pos):
     return data[pos:pos+size], pos+size
 
 def _read_java_obj(data, pos, ignore_remaining_data=False):
-    data_stream = StringIO.StringIO(data[pos:])
+    data_stream = BytesIO(data[pos:])
     obj = javaobj.load(data_stream, ignore_remaining_data=ignore_remaining_data)
     obj_size = data_stream.tell()
 
     return obj, pos + obj_size
 
-def _sun_jks_pkey_decrypt(data, password):
+def _sun_jks_pkey_decrypt(data, password_str):
     """
     Decrypts the private key password protection algorithm used by JKS keystores.
     The JDK sources state that 'the password is expected to be in printable ASCII', though this does not appear to be enforced;
     the password is converted into bytes simply by taking each individual Java char and appending its raw 2-byte representation.
     See sun/security/provider/KeyProtector.java in the JDK sources.
     """
-    password = password.encode('utf-16be') # Java chars are UTF-16BE code units
+    password_bytes = password_str.encode('utf-16be') # Java chars are UTF-16BE code units
+
+    data = bytearray(data)
     iv, data, check = data[:20], data[20:-20], data[-20:]
-    xoring = zip(data, _jks_keystream(iv, password))
-    key = ''.join([chr(ord(a) ^ ord(b)) for a, b in xoring])
-    if hashlib.sha1(password + key).digest() != check:
+    xoring = zip(data, _jks_keystream(iv, password_bytes))
+    key = bytearray([d^k for d,k in xoring])
+
+    if hashlib.sha1(password_bytes + key).digest() != check:
         raise DecryptionFailureException("Bad hash check on private key; wrong password?")
+    key = bytes(key)
     return key
 
 def _jks_keystream(iv, password):
     """Helper keystream generator for _sun_jks_pkey_decrypt"""
     cur = iv
     while 1:
-        cur = hashlib.sha1(password + cur).digest()
+        cur = bytearray(hashlib.sha1(password + cur).digest()) # make sure we iterate over ints in both Py2 and Py3
         for byte in cur:
             yield byte
 
@@ -324,7 +337,7 @@ def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     # It validates this explicitly and will throw an InvalidKeySpecException if non-ASCII byte codes are present in the password.
     # See PBEKey's constructor in com/sun/crypto/provider/PBEKey.java.
     try:
-        password.encode('ascii')
+        password_bytes = password.encode('ascii')
     except (UnicodeDecodeError, UnicodeEncodeError):
         raise ValueError("Key password contains non-ASCII characters")
 
@@ -332,11 +345,11 @@ def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     if salt_halves[0] == salt_halves[1]:
         salt_halves[0] = salt_halves[0][::-1] # reversed
 
-    derived = ''
+    derived = b""
     for i in range(2):
         to_be_hashed = salt_halves[i]
         for k in range(iteration_count):
-            to_be_hashed = hashlib.md5(to_be_hashed + password).digest()
+            to_be_hashed = hashlib.md5(to_be_hashed + password_bytes).digest()
         derived += to_be_hashed
 
     key = derived[:-8] # = 24 bytes
@@ -352,9 +365,10 @@ def _strip_pkcs5_padding(m):
     if len(m) < 8 or len(m) % 8 != 0:
         raise BadPaddingException("Unable to strip PKCS5 padding: invalid message length")
 
-    last_byte = ord(m[-1:])
+    m = bytearray(m) # py2/3 compatibility: always returns individual indexed elements as ints
+    last_byte = m[-1]
     # the <last_byte> bytes of m must all have value <last_byte>, otherwise something's wrong
-    if (last_byte <= 0 or last_byte > 8) or (m[-last_byte:] != chr(last_byte)*last_byte):
+    if (last_byte <= 0 or last_byte > 8) or (m[-last_byte:] != bytearray([last_byte])*last_byte):
         raise BadPaddingException("Unable to strip PKCS5 padding: invalid padding found")
 
-    return m[:-last_byte]
+    return bytes(m[:-last_byte]) # back to 'str'/'bytes'
