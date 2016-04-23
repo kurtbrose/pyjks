@@ -1,9 +1,9 @@
 package org.pyjks;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.security.KeyStore;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.cert.Certificate;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.DESKeySpec;
@@ -18,32 +18,13 @@ import org.junit.Test;
 /**
  * Prepares a bunch of JCEKS key stores on disk for pyjks to parse and verify the contents of.
  */
-public class JceKeystoreGeneratorTest
+public class JceKeystoreGeneratorTest extends PyJksTestCase
 {
 	@BeforeClass
 	public static void setUpClass() throws Exception
 	{
 		File targetDirectory = new File("../keystores/jceks");
 		FileUtils.forceMkdir(targetDirectory);
-	}
-
-	protected void generateSecretKeyStore(String filepath, SecretKey secretKey) throws Exception
-	{
-		generateSecretKeyStore(filepath, secretKey, "12345678", "12345678", "mykey");
-	}
-
-	protected void generateSecretKeyStore(String filepath, SecretKey secretKey, String keystorePassword, String keyPassword, String alias) throws Exception
-	{
-		KeyStore ks = KeyStore.getInstance("JCEKS");
-		char[] ksPasswordChars = keystorePassword.toCharArray();
-		ks.load(null, ksPasswordChars);
-
-		if (secretKey != null)
-			ks.setEntry(alias, new KeyStore.SecretKeyEntry(secretKey), new KeyStore.PasswordProtection(keyPassword.toCharArray()));
-
-		FileOutputStream fos = new FileOutputStream(filepath);
-		ks.store(fos, ksPasswordChars);
-		fos.close();
 	}
 
 	@Test
@@ -89,6 +70,18 @@ public class JceKeystoreGeneratorTest
 	{
 		generateSecretKeyStore("../keystores/jceks/AES128.jceks", new SecretKeySpec(Hex.decodeHex("666e0221cc44c1fc4aabf458f9dfdd3c".toCharArray()), "AES"));
 		generateSecretKeyStore("../keystores/jceks/AES256.jceks", new SecretKeySpec(Hex.decodeHex("e7d7c262668221787b6b5a0f687712fde4be52e9e7d7c262668221787b6b5a0f".toCharArray()), "AES"));
+	}
+
+	@Test
+	public void jceks_RSA1024() throws Exception
+	{
+		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+		keyPairGenerator.initialize(1024);
+		KeyPair keyPair = keyPairGenerator.generateKeyPair();
+
+		Certificate cert = createSelfSignedCertificate(keyPair, "CN=RSA1024");
+
+		generatePrivateKeyStore("../keystores/jceks/RSA1024.jceks", keyPair.getPrivate(), new Certificate[] { cert });
 	}
 
 }
