@@ -15,6 +15,7 @@ import javax.crypto.spec.PBEParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
@@ -115,6 +116,29 @@ public class JceKeystoreGeneratorTest extends PyJksTestCase
 		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
 
 		SealedObject so = new SealedObject(new DummyObject(), cipher);
+		generateManualSealedObjectStore(filename, password, alias, so);
+	}
+
+
+	@Test
+	public void jceks_unknown_sealed_object_sealAlg() throws Exception
+	{
+		// create a keystore with a SecretKeyEntry with a proper SealedObject instance, but with an unexpected sealing algorithm
+		String filename = "../keystores/jceks/jceks_unknown_sealed_object_sealAlg.jceks";
+		String alias = "mykey";
+		String password = "12345678";
+
+		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(new byte[]{83, 79, 95, 83, 65, 76, 84, 89}, 42);
+		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
+		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+
+		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
+		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+
+		SealedObject so = new SealedObject(new DummyObject(), cipher);
+		FieldUtils.writeField(so, "sealAlg", "nonsense", true);
+
 		generateManualSealedObjectStore(filename, password, alias, so);
 	}
 

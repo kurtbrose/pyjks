@@ -139,5 +139,9 @@ class JceksTests(AbstractTest):
         self.assertRaises(jks.UnexpectedJavaTypeException, lambda: \
             jks.KeyStore.load("tests/keystores/jceks/unknown_type_inside_sealed_object.jceks", "12345678"))
 
+    def test_unknown_sealed_object_sealAlg(self):
+        self.assertRaises(jks.UnexpectedAlgorithmException, lambda: \
+            jks.KeyStore.load("tests/keystores/jceks/jceks_unknown_sealed_object_sealAlg.jceks", "12345678"))
+
 if __name__ == "__main__":
     unittest.main()
