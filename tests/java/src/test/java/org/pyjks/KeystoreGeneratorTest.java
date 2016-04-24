@@ -18,6 +18,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 	{
 		FileUtils.forceMkdir(new File("../keystores/jks"));
 		FileUtils.forceMkdir(new File("../keystores/jceks"));
+		FileUtils.forceMkdir(new File("../expected"));
 	}
 
 	@Test
@@ -35,11 +36,12 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 		KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
 		Certificate cert = createSelfSignedCertificate(keyPair, "CN=RSA1024");
+		Certificate[] certs = new Certificate[]{cert};
 
-		generatePrivateKeyStore("JKS",   "../keystores/jks/RSA1024.jks",     keyPair.getPrivate(), new Certificate[] { cert });
-		generatePrivateKeyStore("JCEKS", "../keystores/jceks/RSA1024.jceks", keyPair.getPrivate(), new Certificate[] { cert });
+		generatePrivateKeyStore("JKS",   "../keystores/jks/RSA1024.jks",     keyPair.getPrivate(), certs);
+		generatePrivateKeyStore("JCEKS", "../keystores/jceks/RSA1024.jceks", keyPair.getPrivate(), certs);
 
-		System.out.println("RSA1024_expected_key = " + toPythonString(keyPair.getPrivate().getEncoded()));
-		System.out.println("RSA1024_expected_certs = [" + toPythonString(cert.getEncoded()) + "]");
+		writePythonDataFile("../expected/RSA1024.py", keyPair.getPrivate(), certs);
 	}
+
 }
