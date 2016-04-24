@@ -44,4 +44,22 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 		writePythonDataFile("../expected/RSA1024.py", keyPair.getPrivate(), certs);
 	}
 
+	@Test
+	public void generate_RSA2048_3certs() throws Exception
+	{
+		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+		keyPairGenerator.initialize(2048);
+		KeyPair keyPair = keyPairGenerator.generateKeyPair();
+
+		// these do not form a chain, but that doesn't really matter for our purposes
+		Certificate cert1 = createSelfSignedCertificate(keyPair, "CN=RSA1024, O=1");
+		Certificate cert2 = createSelfSignedCertificate(keyPair, "CN=RSA1024, O=2");
+		Certificate cert3 = createSelfSignedCertificate(keyPair, "CN=RSA1024, O=3");
+		Certificate[] certs = new Certificate[]{ cert1, cert2, cert3 };
+
+		generatePrivateKeyStore("JKS",   "../keystores/jks/RSA2048_3certs.jks",     keyPair.getPrivate(), certs);
+		generatePrivateKeyStore("JCEKS", "../keystores/jceks/RSA2048_3certs.jceks", keyPair.getPrivate(), certs);
+
+		writePythonDataFile("../expected/RSA2048_3certs.py", keyPair.getPrivate(), certs);
+	}
 }

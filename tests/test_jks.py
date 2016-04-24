@@ -59,6 +59,11 @@ class JksTests(AbstractTest):
         pk = self.find_private_key(store, "mykey")
         self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
 
+    def test_rsa_2048_3certs(self):
+        store = jks.KeyStore.load("tests/keystores/jks/RSA2048_3certs.jks", "12345678")
+        pk = self.find_private_key(store, "mykey")
+        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
+
 class JceTests(AbstractTest):
     def test_empty_store(self):
         store = jks.KeyStore.load("tests/keystores/jceks/empty.jceks", "")
@@ -70,6 +75,11 @@ class JceTests(AbstractTest):
         store = jks.KeyStore.load("tests/keystores/jceks/RSA1024.jceks", "12345678")
         pk = self.find_private_key(store, "mykey")
         self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
+
+    def test_rsa_2048_3certs(self):
+        store = jks.KeyStore.load("tests/keystores/jceks/RSA2048_3certs.jceks", "12345678")
+        pk = self.find_private_key(store, "mykey")
+        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
 
 class JceOnlyTests(AbstractTest):
     def test_des_secret_key(self):
