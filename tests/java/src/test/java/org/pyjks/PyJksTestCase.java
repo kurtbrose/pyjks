@@ -56,6 +56,25 @@ public class PyJksTestCase
 		return toPythonString(data, 32);
 	}
 
+	protected void generatePrivateKeyStore(String storeType, String filepath, PrivateKey privateKey, Certificate[] chain) throws Exception
+	{
+		generatePrivateKeyStore(storeType, filepath, privateKey, chain, "12345678", "12345678", "mykey");
+	}
+
+	protected void generatePrivateKeyStore(String storeType, String filepath, PrivateKey privateKey, Certificate[] chain, String keystorePassword, String keyPassword, String alias) throws Exception
+	{
+		KeyStore ks = KeyStore.getInstance(storeType);
+		char[] ksPasswordChars = keystorePassword.toCharArray();
+		ks.load(null, ksPasswordChars);
+
+		if (privateKey != null)
+			ks.setEntry(alias, new KeyStore.PrivateKeyEntry(privateKey, chain), new KeyStore.PasswordProtection(keyPassword.toCharArray()));
+
+		FileOutputStream fos = new FileOutputStream(filepath);
+		ks.store(fos, ksPasswordChars);
+		fos.close();
+	}
+
 	protected MessageDigest getJceStoreDigest(String keystorePassword)
 	{
 		char[] password = keystorePassword.toCharArray();
@@ -98,6 +117,9 @@ public class PyJksTestCase
 		char[] ksPasswordChars = keystorePassword.toCharArray();
 		ks.load(null, ksPasswordChars);
 
+		// Note: there's no point specifying a protection algorithm/parameters to the KeyStore.PasswordProtection instance,
+		// the default KeyStoreSpi.setEntry implementation uses it only to grab the password and nothing else.
+		// Only the PKCS12 keystore SPI appears to honor custom protection algorithm/parameters.
 		if (secretKey != null)
 			ks.setEntry(alias, new KeyStore.SecretKeyEntry(secretKey), new KeyStore.PasswordProtection(keyPassword.toCharArray()));
 
@@ -132,25 +154,6 @@ public class PyJksTestCase
 		dos.write(md.digest());
 		dos.flush();
 		oos.close();
-	}
-
-	protected void generatePrivateKeyStore(String filepath, PrivateKey privateKey, Certificate[] chain) throws Exception
-	{
-		generatePrivateKeyStore(filepath, privateKey, chain, "12345678", "12345678", "mykey");
-	}
-
-	protected void generatePrivateKeyStore(String filepath, PrivateKey privateKey, Certificate[] chain, String keystorePassword, String keyPassword, String alias) throws Exception
-	{
-		KeyStore ks = KeyStore.getInstance("JCEKS");
-		char[] ksPasswordChars = keystorePassword.toCharArray();
-		ks.load(null, ksPasswordChars);
-
-		if (privateKey != null)
-			ks.setEntry(alias, new KeyStore.PrivateKeyEntry(privateKey, chain), new KeyStore.PasswordProtection(keyPassword.toCharArray()));
-
-		FileOutputStream fos = new FileOutputStream(filepath);
-		ks.store(fos, ksPasswordChars);
-		fos.close();
 	}
 
 	protected Certificate createSelfSignedCertificate(KeyPair keyPair, String dn) throws Exception
