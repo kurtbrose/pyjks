@@ -124,7 +124,7 @@ public class JceKeystoreGeneratorTest extends PyJksTestCase
 	public void jceks_unknown_sealed_object_sealAlg() throws Exception
 	{
 		// create a keystore with a SecretKeyEntry with a proper SealedObject instance, but with an unexpected sealing algorithm
-		String filename = "../keystores/jceks/jceks_unknown_sealed_object_sealAlg.jceks";
+		String filename = "../keystores/jceks/unknown_sealed_object_sealAlg.jceks";
 		String alias = "mykey";
 		String password = "12345678";
 
