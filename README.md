@@ -3,6 +3,13 @@ pyjks
 
 A pure python Java KeyStore file parser, including private/secret key decryption. Can read both JKS and JCEKS key stores.
 
+The best way to utilize a certificate stored in a jks file up to this point has been
+to use the java keytool command to transform to pkcs12, and then openssl to transform to pem.
+
+This is better:
+ -  no security concerns in passwords going into command line arguments, or unencrypted files being left around
+ -  no dependency on a JVM
+
 ## Requirements:
 
  * Python 2.6+ (no Python 3 support yet)
@@ -74,13 +81,4 @@ def jksfile2context(jks_file, passphrase):
     return ctx
 
 ```
-
-The best way to utilize a certificate stored in a jks file up to this point has been
-to use the java keytool command to transform to pkcs12, and then openssl to transform to pem.
-
-This is better:
-
-1-  no security concerns in passwords going into command line arguments, or unencrypted files being left around
-
-2-  no dependency on a JVM
 
