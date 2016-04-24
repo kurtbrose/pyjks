@@ -14,9 +14,11 @@ import collections
 import StringIO
 import javaobj
 from pyasn1.codec.ber import decoder
+from pyasn1_modules import rfc5208
+from . import rfc2898
 
 Cert = collections.namedtuple("Cert", "alias timestamp type cert")
-PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey cert_chain")
+PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey_pkcs8 algorithm_oid pkey cert_chain")
 SecretKey = collections.namedtuple("SecretKey", "alias timestamp algorithm key size")
 
 b8 = struct.Struct('>Q')
@@ -30,6 +32,14 @@ VERSION = b4.pack(2)
 SIGNATURE_WHITENING = b"Mighty Aphrodite"
 SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
 SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
+RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
+
+class KeystoreException(Exception): pass
+class BadKeystoreFormatException(KeystoreException): pass
+class UnsupportedKeystoreFormatException(KeystoreException): pass
+class BadPaddingException(KeystoreException): pass
+class UnexpectedJavaTypeException(KeystoreException): pass
+class UnexpectedAlgorithmException(KeystoreException): pass
 
 class KeyStore(object):
     def __init__(self, private_keys, certs, secret_keys):
@@ -51,11 +61,11 @@ class KeyStore(object):
         elif magic_number == MAGIC_NUMBER_JCEKS:
             filetype = 'jceks'
         else:
-            raise ValueError('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
+            raise BadKeystoreFormatException('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
 
         version = b4.unpack_from(data, 4)[0]
         if version != 2:
-            raise ValueError('Unsupported keystore version; only v2 supported, found v'+repr(version))
+            raise UnsupportedKeystoreFormatException('Unsupported keystore version; only v2 supported, found v'+repr(version))
 
         private_keys = []
         secret_keys = []
@@ -81,14 +91,15 @@ class KeyStore(object):
                     cert_data, pos = _read_data(data, pos)
                     cert_chain.append((cert_type, cert_data))
 
-                # at this point, ber_data is a PKCS#8 EncryptedPrivateKeyInfo
-                asn1_data = decoder.decode(ber_data)
-                algo_id = asn1_data[0][0][0].asTuple()
-                encrypted_private_key = asn1_data[0][1].asOctets()
+                # at this point, 'ber_data' is a PKCS#8 EncryptedPrivateKeyInfo (see RFC 5208)
+                encrypted_info = decoder.decode(ber_data, asn1Spec=rfc5208.EncryptedPrivateKeyInfo())[0]
+                algo_id = encrypted_info['encryptionAlgorithm']['algorithm'].asTuple()
+                algo_params = encrypted_info['encryptionAlgorithm']['parameters'].asOctets()
+                encrypted_private_key = encrypted_info['encryptedData'].asOctets()
 
                 if filetype == 'jks':
                     if algo_id != SUN_JKS_ALGO_ID:
-                        raise ValueError("Unknown JKS private key algorithm OID: {0}".format(algo_id))
+                        raise UnexpectedAlgorithmException("Unknown JKS private key algorithm OID: {0}".format(algo_id))
                     plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
 
                 elif filetype == 'jceks':
@@ -96,17 +107,21 @@ class KeyStore(object):
                         plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
                     elif algo_id == SUN_JCE_ALGO_ID:
                         # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
-                        salt = asn1_data[0][0][1][0].asOctets()
-                        iteration_count = int(asn1_data[0][0][1][1])
+                        params = decoder.decode(algo_params, asn1Spec=rfc2898.PBEParameter())[0]
+                        salt = params['salt'].asOctets()
+                        iteration_count = int(params['iterationCount'])
                         try:
                             plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, password, salt, iteration_count)
                         except BadPaddingException:
                             raise ValueError("Failed to decrypt data for private key '%s'; bad password?" % alias)
                     else:
-                        raise ValueError("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
+                        raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
 
-                key = decoder.decode(plaintext)[0][2].asOctets()
-                private_keys.append(PrivateKey(alias, timestamp, key, cert_chain))
+                # at this point, 'plaintext' is a PKCS#8 PrivateKeyInfo (see RFC 5208)
+                private_key_info = decoder.decode(plaintext, asn1Spec=rfc5208.PrivateKeyInfo())[0]
+                key = private_key_info['privateKey'].asOctets()
+                algorithm_oid = private_key_info['privateKeyAlgorithm']['algorithm'].asTuple()
+                private_keys.append(PrivateKey(alias, timestamp, plaintext, algorithm_oid, key, cert_chain))
 
             elif tag == 2:  # cert
                 cert_type, pos = _read_utf(data, pos)
@@ -115,7 +130,7 @@ class KeyStore(object):
 
             elif tag == 3: # secret key
                 if filetype != 'jceks':
-                    raise ValueError("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
+                    raise BadKeystoreFormatException("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
 
                 # SecretKeys are stored in the key store file through Java's serialization mechanism, i.e. as an actual serialized Java object
                 # embedded inside the file. The objects that get stored are not the SecretKey instances themselves though, as that would trivially
@@ -143,27 +158,31 @@ class KeyStore(object):
                 #   private String paramsAlg;                # The algorithm of the parameters used.
                 #   protected byte[] encodedParams;          # The cryptographic parameters used by the sealing Cipher, encoded in the default format.
 
-                sealed_obj, pos = _read_java_obj(data, pos)
+                sealed_obj, pos = _read_java_obj(data, pos, ignore_remaining_data=True)
                 if not _java_instanceof(sealed_obj, "javax.crypto.SealedObject"):
-                    raise ValueError("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
+                    raise UnexpectedJavaTypeException("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
 
-                sealed_obj.encodedParams = _java_bytestring(sealed_obj.encodedParams)
                 sealed_obj.encryptedContent = _java_bytestring(sealed_obj.encryptedContent)
 
-                salt = 0
-                iteration_count = 0
                 plaintext = ""
+                if sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
+                    # if the object was sealed with PBEWithMD5AndTripleDES then the parameters should apply to the same algorithm and not be empty or null
+                    if sealed_obj.paramsAlg != sealed_obj.sealAlg:
+                        raise UnexpectedAlgorithmException("Unexpected parameters algorithm used in SealedObject; should match sealing algorithm '%s' but found '%s'" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
+                    if sealed_obj.encodedParams is None or len(sealed_obj.encodedParams) == 0:
+                        raise UnexpectedJavaTypeException("No parameters found in SealedObject instance for sealing algorithm '%s'; need at least a salt and iteration count to decrypt" % sealed_obj.sealAlg)
 
-                params_asn1 = decoder.decode(sealed_obj.encodedParams)
-                if sealed_obj.paramsAlg == "PBEWithMD5AndTripleDES" and sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
-                    salt = params_asn1[0][0].asOctets()
-                    iteration_count = int(params_asn1[0][1])
+                    sealed_obj.encodedParams = _java_bytestring(sealed_obj.encodedParams)
+
+                    params_asn1 = decoder.decode(sealed_obj.encodedParams, asn1Spec=rfc2898.PBEParameter())[0]
+                    salt = params_asn1['salt'].asOctets()
+                    iteration_count = int(params_asn1['iterationCount'])
                     try:
                         plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, password, salt, iteration_count)
                     except BadPaddingException:
                         raise ValueError("Failed to decrypt data for secret key '%s'; bad password?" % alias)
                 else:
-                    raise ValueError("Unexpected sealAlg and paramsAlg combination: sealAlg=%s, paramsAlg=%s" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
+                    raise UnexpectedAlgorithmException("Unexpected algorithm used for encrypting SealedObject: sealAlg=%s" % sealed_obj.sealAlg)
 
                 # The plaintext here is another serialized Java object; this time it's an object implementing the javax.crypto.SecretKey interface.
                 # When using the default SunJCE provider, these are usually either javax.crypto.spec.SecretKeySpec objects, or some other specialized ones
@@ -180,8 +199,9 @@ class KeyStore(object):
                     key_bytes = _java_bytestring(obj.key)
                     key_size = len(key_bytes)*8
                     secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
+
                 elif clazz.name == "java.security.KeyRep":
-                    assert obj.type == "SECRET", "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type
+                    assert (obj.type.constant == "SECRET"), "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type.constant
                     key_algorithm = obj.algorithm
                     key_encoding = obj.format
                     key_bytes = _java_bytestring(obj.encoded)
@@ -197,10 +217,10 @@ class KeyStore(object):
                     key_size = len(key_bytes)*8
                     secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
                 else:
-                    raise ValueError("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % obj.get_class().name)
+                    raise UnexpectedJavaTypeException("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % clazz.name)
 
             else:
-                raise ValueError("Unexpected keystore entry tag %d", tag)
+                raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
 
         # the keystore integrity check uses the UTF-16BE encoding of the password
         password_utf16 = password.encode('utf-16be')
@@ -238,9 +258,9 @@ def _read_data(data, pos):
     pos += 4
     return data[pos:pos+size], pos+size
 
-def _read_java_obj(data, pos):
+def _read_java_obj(data, pos, ignore_remaining_data=False):
     data_stream = StringIO.StringIO(data[pos:])
-    obj = javaobj.load(data_stream)
+    obj = javaobj.load(data_stream, ignore_remaining_data=ignore_remaining_data)
     obj_size = data_stream.tell()
 
     return obj, pos + obj_size
@@ -311,9 +331,6 @@ def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     key = derived[:-8] # = 24 bytes
     iv = derived[-8:]
     return key, iv
-
-class BadPaddingException(Exception):
-    pass
 
 def _strip_pkcs5_padding(m):
     # drop PKCS5 padding:  8-(||M|| mod 8) octets each with value 8-(||M|| mod 8)

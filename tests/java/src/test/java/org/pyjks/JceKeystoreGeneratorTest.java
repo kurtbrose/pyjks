@@ -1,49 +1,34 @@
 package org.pyjks;
 
 import java.io.File;
-import java.io.FileOutputStream;
-import java.io.IOException;
-import java.security.KeyStore;
+import java.security.KeyPair;
+import java.security.KeyPairGenerator;
+import java.security.cert.Certificate;
+import javax.crypto.Cipher;
+import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.DESKeySpec;
 import javax.crypto.spec.DESedeKeySpec;
 import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.PBEParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.reflect.FieldUtils;
 import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
  * Prepares a bunch of JCEKS key stores on disk for pyjks to parse and verify the contents of.
  */
-public class JceKeystoreGeneratorTest
+public class JceKeystoreGeneratorTest extends PyJksTestCase
 {
 	@BeforeClass
 	public static void setUpClass() throws Exception
 	{
 		File targetDirectory = new File("../keystores/jceks");
 		FileUtils.forceMkdir(targetDirectory);
-	}
-
-	protected void generateSecretKeyStore(String filepath, SecretKey secretKey) throws Exception
-	{
-		generateSecretKeyStore(filepath, secretKey, "12345678", "12345678", "mykey");
-	}
-
-	protected void generateSecretKeyStore(String filepath, SecretKey secretKey, String keystorePassword, String keyPassword, String alias) throws Exception
-	{
-		KeyStore ks = KeyStore.getInstance("JCEKS");
-		char[] ksPasswordChars = keystorePassword.toCharArray();
-		ks.load(null, ksPasswordChars);
-
-		if (secretKey != null)
-			ks.setEntry(alias, new KeyStore.SecretKeyEntry(secretKey), new KeyStore.PasswordProtection(keyPassword.toCharArray()));
-
-		FileOutputStream fos = new FileOutputStream(filepath);
-		ks.store(fos, ksPasswordChars);
-		fos.close();
 	}
 
 	@Test
@@ -89,6 +74,72 @@ public class JceKeystoreGeneratorTest
 	{
 		generateSecretKeyStore("../keystores/jceks/AES128.jceks", new SecretKeySpec(Hex.decodeHex("666e0221cc44c1fc4aabf458f9dfdd3c".toCharArray()), "AES"));
 		generateSecretKeyStore("../keystores/jceks/AES256.jceks", new SecretKeySpec(Hex.decodeHex("e7d7c262668221787b6b5a0f687712fde4be52e9e7d7c262668221787b6b5a0f".toCharArray()), "AES"));
+	}
+
+	@Test
+	public void jceks_RSA1024() throws Exception
+	{
+		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
+		keyPairGenerator.initialize(1024);
+		KeyPair keyPair = keyPairGenerator.generateKeyPair();
+
+		Certificate cert = createSelfSignedCertificate(keyPair, "CN=RSA1024");
+
+		generatePrivateKeyStore("../keystores/jceks/RSA1024.jceks", keyPair.getPrivate(), new Certificate[] { cert });
+	}
+
+	@Test
+	public void jceks_unknown_type_of_sealed_object() throws Exception
+	{
+		// create a keystore with a SecretKeyEntry that has a serialized object inside of it that is *not* of type javax.crypto.SealedObject
+		String filename = "../keystores/jceks/unknown_type_of_sealed_object.jceks";
+		String alias = "mykey";
+		String password = "12345678";
+
+		generateManualSealedObjectStore(filename, password, alias, new DummyObject());
+	}
+
+	@Test
+	public void jceks_unknown_type_inside_sealed_object() throws Exception
+	{
+		// create a keystore with a SecretKeyEntry with a proper SealedObject instance, but with an unexpected Java type encrypted inside the SealedObject
+		String filename = "../keystores/jceks/unknown_type_inside_sealed_object.jceks";
+		String alias = "mykey";
+		String password = "12345678";
+
+		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(new byte[]{83, 79, 95, 83, 65, 76, 84, 89}, 42);
+		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
+		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+
+		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
+		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+
+		SealedObject so = new SealedObject(new DummyObject(), cipher);
+		generateManualSealedObjectStore(filename, password, alias, so);
+	}
+
+
+	@Test
+	public void jceks_unknown_sealed_object_sealAlg() throws Exception
+	{
+		// create a keystore with a SecretKeyEntry with a proper SealedObject instance, but with an unexpected sealing algorithm
+		String filename = "../keystores/jceks/unknown_sealed_object_sealAlg.jceks";
+		String alias = "mykey";
+		String password = "12345678";
+
+		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(new byte[]{83, 79, 95, 83, 65, 76, 84, 89}, 42);
+		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
+		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+
+		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
+		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+
+		SealedObject so = new SealedObject(new DummyObject(), cipher);
+		FieldUtils.writeField(so, "sealAlg", "nonsense", true);
+
+		generateManualSealedObjectStore(filename, password, alias, so);
 	}
 
 }

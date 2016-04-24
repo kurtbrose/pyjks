@@ -1,12 +1,27 @@
 pyjks
 =====
 
-A pure python Java KeyStore file parser, including private key decryption.
+A pure python Java KeyStore file parser, including private/secret key decryption. Can read both JKS and JCEKS key stores.
 
-Usage examples:
+The best way to utilize a certificate stored in a jks file up to this point has been
+to use the java keytool command to transform to pkcs12, and then openssl to transform to pem.
+
+This is better:
+ -  no security concerns in passwords going into command line arguments, or unencrypted files being left around
+ -  no dependency on a JVM
+
+## Requirements:
+
+ * Python 2.6+ (no Python 3 support yet)
+ * pyasn1 0.1.7+
+ * pyasn1_modules 0.0.8+
+ * javaobj-py3 0.1.4+
+ * pycrypto, if you need to read JCEKS keystores
+
+## Usage examples:
 
 Reading a JKS or JCEKS keystore and dumping out its contents in the PEM format:
-```
+```python
 import sys, base64, textwrap
 import jks
 
@@ -19,7 +34,11 @@ ks = jks.KeyStore.load("keystore.jks", "XXXXXXXX")
 
 for pk in ks.private_keys:
     print "Private key: %s" % pk.alias
-    print_pem(pk.pkey, "RSA PRIVATE KEY")
+    if pk.algorithm_oid == jks.RSA_ENCRYPTION_OID:
+        print_pem(pk.pkey, "RSA PRIVATE KEY")
+    else:
+        print_pem(pk.pkey_pkcs8, "PRIVATE KEY")
+
     for c in pk.cert_chain:
         print_pem(c[1], "CERTIFICATE")
     print
@@ -46,7 +65,7 @@ _ASN1 = OpenSSL.crypto.FILETYPE_ASN1
 
 def jksfile2context(jks_file, passphrase):
     keystore = jks.KeyStore.load(jks_file, passphrase)
-    pkey = OpenSSL.crypto.load_privatekey(_ASN1, keystore.private_key.pkey)
+    pkey = OpenSSL.crypto.load_privatekey(_ASN1, keystore.private_keys[0].pkey)
     trusted_certs = [OpenSSL.crypto.load_certificate(_ASN1, cert.cert)
                      for cert in keystore.certs]
     public_cert = OpenSSL.crypto.load_certificate(
@@ -63,13 +82,4 @@ def jksfile2context(jks_file, passphrase):
     return ctx
 
 ```
-
-The best way to utilize a certificate stored in a jks file up to this point has been
-to use the java keytool command to transform to pkcs12, and then openssl to transform to pem.
-
-This is better:
-
-1-  no security concerns in passwords going into command line arguments, or unencrypted files being left around
-
-2-  no dependency on a JVM
 
