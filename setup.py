@@ -26,6 +26,6 @@ setup(
         'License :: OSI Approved :: MIT License',
     ],
     packages=['jks'],
-    install_requires=['pyasn1', 'javaobj-py3'],
+    install_requires=['pyasn1', 'pyasn1_modules', 'javaobj-py3'],
     test_suite="tests.test_jks",
 )

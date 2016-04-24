@@ -14,6 +14,7 @@ This is better:
 
  * Python 2.6+ (no Python 3 support yet)
  * pyasn1 0.1.7+
+ * pyasn1_modules 0.0.8+
  * javaobj-py3 0.1.4+
  * pycrypto, if you need to read JCEKS keystores
 
