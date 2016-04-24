@@ -20,7 +20,7 @@ This is better:
 ## Usage examples:
 
 Reading a JKS or JCEKS keystore and dumping out its contents in the PEM format:
-```
+```python
 import sys, base64, textwrap
 import jks
 
