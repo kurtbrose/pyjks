@@ -251,7 +251,7 @@ def _java_bytestring(java_byte_list):
 def _read_utf(data, pos):
     size = b2.unpack_from(data, pos)[0]
     pos += 2
-    return unicode(data[pos:pos+size], 'utf-8'), pos+size
+    return data[pos:pos+size].decode('utf-8'), pos+size
 
 def _read_data(data, pos):
     size = b4.unpack_from(data, pos)[0]
@@ -267,10 +267,10 @@ def _read_java_obj(data, pos, ignore_remaining_data=False):
 
 def _sun_jks_pkey_decrypt(data, password):
     'implements private key crypto algorithm used by JKS files'
-    password = ''.join([b'\0'+c.encode('latin-1') for c in password]) # the JKS algorithm uses a regular Java UTF16-BE string for the password, so insert 0 bytes
+    password = password.encode('UTF-16BE') # the JKS algorithm uses a regular Java UTF16-BE string for the password, so insert 0 bytes
     iv, data, check = data[:20], data[20:-20], data[-20:]
     xoring = zip(data, _jks_keystream(iv, password))
-    key = ''.join([chr(ord(a) ^ ord(b)) for a, b in xoring])
+    key = bytes([a ^ b for a, b in xoring])
     if hashlib.sha1(password + key).digest() != check:
         raise ValueError("bad hash check on private key")
     return key
