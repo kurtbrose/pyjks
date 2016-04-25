@@ -70,6 +70,11 @@ class JksTests(AbstractTest):
         pk = self.find_private_key(store, "mykey")
         self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
 
+    def test_non_ascii_jks_password(self):
+        store = jks.KeyStore.load("tests/keystores/jks/non_ascii_password.jks", u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
+        pk = self.find_private_key(store, "mykey")
+        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.jks_non_ascii_password.private_key, expected.jks_non_ascii_password.certs)
+
 class JceTests(AbstractTest):
     def test_empty_store(self):
         store = jks.KeyStore.load("tests/keystores/jceks/empty.jceks", "")

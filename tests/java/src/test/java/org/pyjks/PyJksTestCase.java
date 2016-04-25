@@ -103,10 +103,10 @@ public class PyJksTestCase
 		generatePrivateKeyStore(storeType, filepath, privateKey, chain, "12345678", "12345678", "mykey");
 	}
 
-	protected void generatePrivateKeyStore(String storeType, String filepath, PrivateKey privateKey, Certificate[] chain, String keystorePassword, String keyPassword, String alias) throws Exception
+	protected void generatePrivateKeyStore(String storeType, String filepath, PrivateKey privateKey, Certificate[] chain, String storePassword, String keyPassword, String alias) throws Exception
 	{
 		KeyStore ks = KeyStore.getInstance(storeType);
-		char[] ksPasswordChars = keystorePassword.toCharArray();
+		char[] ksPasswordChars = storePassword.toCharArray();
 		ks.load(null, ksPasswordChars);
 
 		if (privateKey != null)
