@@ -266,8 +266,13 @@ def _read_java_obj(data, pos, ignore_remaining_data=False):
     return obj, pos + obj_size
 
 def _sun_jks_pkey_decrypt(data, password):
-    'implements private key crypto algorithm used by JKS files'
-    password = ''.join([b'\0'+c.encode('latin-1') for c in password]) # the JKS algorithm uses a regular Java UTF16-BE string for the password, so insert 0 bytes
+    """
+    Decrypts the private key password protection algorithm used by JKS keystores.
+    The JDK sources state that 'the password is expected to be in printable ASCII', though this does not appear to be enforced;
+    the password is converted into bytes simply by taking each individual Java char and appending its raw 2-byte representation.
+    See sun/security/provider/KeyProtector.java in the JDK sources.
+    """
+    password = password.encode('utf-16be') # Java chars are UTF-16BE code units
     iv, data, check = data[:20], data[20:-20], data[-20:]
     xoring = zip(data, _jks_keystream(iv, password))
     key = ''.join([chr(ord(a) ^ ord(b)) for a, b in xoring])
