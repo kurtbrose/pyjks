@@ -25,20 +25,26 @@ class AbstractTest(unittest.TestCase):
     def find_private_key(self, ks, alias):
         for pk in ks.private_keys:
             if pk.alias == alias:
+                self.assertTrue(isinstance(pk.pkey, bytes))
+                self.assertTrue(isinstance(pk.pkey_pkcs8, bytes))
+                self.assertTrue(isinstance(pk.cert_chain, list))
+                self.assertTrue(all(isinstance(c[1], bytes) for c in pk.cert_chain))
                 return pk
-        return None
+        self.fail("Private key entry not found: %s" % alias)
 
     def find_secret_key(self, ks, alias):
         for sk in ks.secret_keys:
             if sk.alias == alias:
+                self.assertTrue(isinstance(sk.key, bytes))
                 return sk
-        return None
+        self.fail("Secret key entry not found: %s" % alias)
 
     def find_cert(self, ks, alias):
         for c in ks.certs:
             if c.alias == alias:
+                self.assertTrue(isinstance(c.cert, bytes))
                 return c
-        return None
+        self.fail("Certificate entry not found: %s" % alias)
 
     def check_pkey_and_certs_equal(self, pk, algorithm_oid, pkey_pkcs8, certs):
         self.assertEqual(pk.algorithm_oid, algorithm_oid)
