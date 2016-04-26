@@ -33,6 +33,8 @@ SIGNATURE_WHITENING = b"Mighty Aphrodite"
 SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
 SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
 RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
+DSA_OID           = (1,2,840,10040,4,1) # identifier for DSA public/private keys; see RFC 3279, section 2.2.2 (e.g. in PKCS#8 PrivateKeyInfo or X.509 SubjectPublicKeyInfo)
+DSA_WITH_SHA1_OID = (1,2,840,10040,4,3) # identifier for the DSA signature algorithm; see RFC 3279, section 2.3.2 (e.g. in X.509 signatures)
 
 class KeystoreException(Exception): pass
 class KeystoreSignatureException(KeystoreException): pass

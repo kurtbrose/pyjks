@@ -65,6 +65,23 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 	}
 
 	@Test
+	public void generate_DSA2048() throws Exception
+	{
+		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("DSA");
+		keyPairGenerator.initialize(2048);
+		KeyPair keyPair = keyPairGenerator.generateKeyPair();
+
+		// these do not form a chain, but that doesn't really matter for our purposes
+		Certificate cert = createSelfSignedCertificate(keyPair, "CN=DSA2048");
+		Certificate[] certs = new Certificate[]{ cert };
+
+		generatePrivateKeyStore("JKS",   "../keystores/jks/DSA2048.jks",     keyPair.getPrivate(), certs);
+		generatePrivateKeyStore("JCEKS", "../keystores/jceks/DSA2048.jceks", keyPair.getPrivate(), certs);
+
+		writePythonDataFile("../expected/DSA2048.py", keyPair.getPrivate(), certs);
+	}
+
+	@Test
 	public void generate_non_ascii_jks_password() throws Exception
 	{
 		// The JKS keystore protector algorithm says that the password is expected to be ASCII but it doesn't enforce that,

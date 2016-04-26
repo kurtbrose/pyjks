@@ -17,6 +17,8 @@ import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.Certificate;
 import java.security.cert.X509Certificate;
+import java.security.interfaces.DSAPrivateKey;
+import java.security.interfaces.RSAPrivateKey;
 import java.util.Date;
 import javax.crypto.SecretKey;
 import org.apache.commons.io.FileUtils;
@@ -208,6 +210,15 @@ public class PyJksTestCase
 			PublicKey publicKey = keyPair.getPublic();
 			PrivateKey privateKey = keyPair.getPrivate();
 
+			String sigAlgorithmName = "";
+			if (keyPair.getPrivate() instanceof RSAPrivateKey) {
+				sigAlgorithmName = "SHA256WithRSAEncryption";
+			} else if (keyPair.getPrivate() instanceof DSAPrivateKey) {
+				sigAlgorithmName = "SHA1withDSA";
+			} else {
+				throw new RuntimeException("Don't know which signing algorithm to use for private keys of type " + keyPair.getPrivate().getAlgorithm());
+			}
+
 			X500Name subject = new X500Name(dn);
 			X500Name issuer = subject;
 			BigInteger serial = BigInteger.valueOf(0);
@@ -215,7 +226,7 @@ public class PyJksTestCase
 			Date notAfter = new Date(System.currentTimeMillis() + 2*365*86400000L);
 
 			JcaX509v3CertificateBuilder certBuilder = new JcaX509v3CertificateBuilder(issuer, serial, notBefore, notAfter, subject, publicKey);
-			ContentSigner signer = new JcaContentSignerBuilder("SHA256WithRSAEncryption").setProvider(BouncyCastleProvider.PROVIDER_NAME).build(privateKey);
+			ContentSigner signer = new JcaContentSignerBuilder(sigAlgorithmName).setProvider(BouncyCastleProvider.PROVIDER_NAME).build(privateKey);
 			X509CertificateHolder holder = certBuilder.build(signer);
 			X509Certificate cert = new JcaX509CertificateConverter().setProvider(BouncyCastleProvider.PROVIDER_NAME).getCertificate(holder);
 
