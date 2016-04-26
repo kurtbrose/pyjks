@@ -154,5 +154,17 @@ class JceOnlyTests(AbstractTest):
         self.assertRaises(jks.UnexpectedAlgorithmException, lambda: \
             jks.KeyStore.load("tests/keystores/jceks/unknown_sealed_object_sealAlg.jceks", "12345678"))
 
+class MiscTests(AbstractTest):
+    def test_strip_pkcs5_padding(self):
+        self.assertEqual(jks.jks._strip_pkcs5_padding(b"\x08\x08\x08\x08\x08\x08\x08\x08"), b"")
+        self.assertEqual(jks.jks._strip_pkcs5_padding(b"\x01\x07\x07\x07\x07\x07\x07\x07"), b"\x01")
+        self.assertEqual(jks.jks._strip_pkcs5_padding(b"\x01\x02\x03\x04\x05\x06\x07\x01"), b"\x01\x02\x03\x04\x05\x06\x07")
+
+        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"")
+        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x01")
+        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x01\x02\x03\x04\x08\x08")
+        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x07\x07\x07\x07\x07\x07\x07")
+        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x00\x00\x00\x00\x00\x00\x00\x00")
+
 if __name__ == "__main__":
     unittest.main()
