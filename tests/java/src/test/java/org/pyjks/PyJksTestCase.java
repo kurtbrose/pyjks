@@ -119,6 +119,33 @@ public class PyJksTestCase
 		fos.close();
 	}
 
+	protected void generateCertKeyStore(String storeType, String filepath, Certificate cert) throws Exception
+	{
+		generateCertsKeyStore(storeType, filepath, new Certificate[]{cert}, new String[]{"mycert"}, "12345678");
+	}
+
+	protected void generateCertsKeyStore(String storeType, String filepath, Certificate[] certs, String[] aliases) throws Exception
+	{
+		generateCertsKeyStore(storeType, filepath, certs, aliases, "12345678");
+	}
+
+	protected void generateCertsKeyStore(String storeType, String filepath, Certificate[] certs, String[] aliases, String storePassword) throws Exception
+	{
+		KeyStore ks = KeyStore.getInstance(storeType);
+		char[] ksPasswordChars = storePassword.toCharArray();
+		ks.load(null, ksPasswordChars);
+
+		if (certs != null)
+		{
+			for (int i=0; i<certs.length; i++)
+				ks.setEntry(aliases[i], new KeyStore.TrustedCertificateEntry(certs[i]), null);
+		}
+
+		FileOutputStream fos = new FileOutputStream(filepath);
+		ks.store(fos, ksPasswordChars);
+		fos.close();
+	}
+
 	protected MessageDigest getJceStoreDigest(String keystorePassword)
 	{
 		char[] password = keystorePassword.toCharArray();

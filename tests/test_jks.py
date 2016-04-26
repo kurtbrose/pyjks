@@ -79,6 +79,16 @@ class JksTests(AbstractTest):
         self.assertEqual(store.store_type, "jks")
         self.check_pkey_and_certs_equal(pk, jks.DSA_OID, expected.DSA2048.private_key, expected.DSA2048.certs)
 
+    def test_certs(self):
+        store = jks.KeyStore.load("tests/keystores/jks/3certs.jks", "12345678")
+        cert1 = self.find_cert(store, "cert1")
+        cert2 = self.find_cert(store, "cert2")
+        cert3 = self.find_cert(store, "cert3")
+        self.assertEqual(cert1.cert, expected.RSA2048_3certs.certs[0])
+        self.assertEqual(cert2.cert, expected.RSA2048_3certs.certs[1])
+        self.assertEqual(cert3.cert, expected.RSA2048_3certs.certs[2])
+        self.assertEqual(store.store_type, "jks")
+
     def test_non_ascii_jks_password(self):
         store = jks.KeyStore.load("tests/keystores/jks/non_ascii_password.jks", u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
         pk = self.find_private_key(store, "mykey")
@@ -110,6 +120,16 @@ class JceTests(AbstractTest):
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jceks")
         self.check_pkey_and_certs_equal(pk, jks.DSA_OID, expected.DSA2048.private_key, expected.DSA2048.certs)
+
+    def test_certs(self):
+        store = jks.KeyStore.load("tests/keystores/jceks/3certs.jceks", "12345678")
+        cert1 = self.find_cert(store, "cert1")
+        cert2 = self.find_cert(store, "cert2")
+        cert3 = self.find_cert(store, "cert3")
+        self.assertEqual(cert1.cert, expected.RSA2048_3certs.certs[0])
+        self.assertEqual(cert2.cert, expected.RSA2048_3certs.certs[1])
+        self.assertEqual(cert3.cert, expected.RSA2048_3certs.certs[2])
+        self.assertEqual(store.store_type, "jceks")
 
 class JceOnlyTests(AbstractTest):
     def test_des_secret_key(self):

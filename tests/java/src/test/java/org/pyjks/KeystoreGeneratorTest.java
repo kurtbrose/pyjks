@@ -53,13 +53,18 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 		KeyPair keyPair = keyPairGenerator.generateKeyPair();
 
 		// these do not form a chain, but that doesn't really matter for our purposes
-		Certificate cert1 = createSelfSignedCertificate(keyPair, "CN=RSA1024, O=1");
-		Certificate cert2 = createSelfSignedCertificate(keyPair, "CN=RSA1024, O=2");
-		Certificate cert3 = createSelfSignedCertificate(keyPair, "CN=RSA1024, O=3");
+		Certificate cert1 = createSelfSignedCertificate(keyPair, "CN=RSA2048, O=1");
+		Certificate cert2 = createSelfSignedCertificate(keyPair, "CN=RSA2048, O=2");
+		Certificate cert3 = createSelfSignedCertificate(keyPair, "CN=RSA2048, O=3");
 		Certificate[] certs = new Certificate[]{ cert1, cert2, cert3 };
 
 		generatePrivateKeyStore("JKS",   "../keystores/jks/RSA2048_3certs.jks",     keyPair.getPrivate(), certs);
 		generatePrivateKeyStore("JCEKS", "../keystores/jceks/RSA2048_3certs.jceks", keyPair.getPrivate(), certs);
+
+		// and while we have some certificates here anyway, we might as well produce some stores with those in them too
+		String[] certAliases = new String[]{"cert1", "cert2", "cert3"};
+		generateCertsKeyStore("JKS",   "../keystores/jks/3certs.jks", certs, certAliases);
+		generateCertsKeyStore("JCEKS",   "../keystores/jceks/3certs.jceks", certs, certAliases);
 
 		writePythonDataFile("../expected/RSA2048_3certs.py", keyPair.getPrivate(), certs);
 	}
