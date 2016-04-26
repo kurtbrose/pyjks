@@ -162,7 +162,7 @@ class KeyStore(object):
                 #   protected byte[] encodedParams;          # The cryptographic parameters used by the sealing Cipher, encoded in the default format.
 
                 sealed_obj, pos = _read_java_obj(data, pos, ignore_remaining_data=True)
-                if not _java_instanceof(sealed_obj, "javax.crypto.SealedObject"):
+                if not _java_is_subclass(sealed_obj, "javax.crypto.SealedObject"):
                     raise UnexpectedJavaTypeException("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
 
                 sealed_obj.encryptedContent = _java_bytestring(sealed_obj.encryptedContent)
@@ -233,7 +233,7 @@ class KeyStore(object):
 
         return cls(private_keys, certs, secret_keys)
 
-def _java_instanceof(obj, class_name):
+def _java_is_subclass(obj, class_name):
     """Given a deserialized JavaObject as returned by the javaobj library, determine whether it's a subclass of the given class name."""
     clazz = obj.get_class()
     while clazz:
