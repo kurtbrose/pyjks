@@ -1,8 +1,7 @@
+
 import os
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
+from setuptools import setup, find_packages
+
 
 try:
     readme_path = os.path.join(os.path.dirname(os.path.realpath(__file__)), 'README.md')
@@ -25,7 +24,7 @@ setup(
         'Development Status :: 3 - Alpha',
         'License :: OSI Approved :: MIT License',
     ],
-    packages=['jks'],
-    install_requires=['pyasn1', 'pyasn1_modules', 'javaobj-py3'],
+    packages=find_packages(),
+    install_requires=['pyasn1', 'pyasn1_modules', 'javaobj-py3', 'pycrypto'],
     test_suite="tests.test_jks",
 )
