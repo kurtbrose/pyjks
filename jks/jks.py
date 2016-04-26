@@ -342,12 +342,17 @@ def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     return key, iv
 
 def _strip_pkcs5_padding(m):
-    # drop PKCS5 padding:  8-(||M|| mod 8) octets each with value 8-(||M|| mod 8)
+    """
+    Drop PKCS5 padding:  8-(||M|| mod 8) octets each with value 8-(||M|| mod 8)
+
+    Note: ideally we would use pycrypto for this, but it doesn't provide padding functionality and the project is virtually dead at this point.
+    """
+    if len(m) < 8 or len(m) % 8 != 0:
+        raise BadPaddingException("Unable to strip PKCS5 padding: invalid message length")
+
     last_byte = ord(m[-1:])
-    if last_byte <= 0 or last_byte > 8:
-        raise BadPaddingException("Unable to strip PKCS5 padding: invalid padding found")
     # the <last_byte> bytes of m must all have value <last_byte>, otherwise something's wrong
-    if m[-last_byte:] != chr(last_byte)*last_byte:
+    if (last_byte <= 0 or last_byte > 8) or (m[-last_byte:] != chr(last_byte)*last_byte):
         raise BadPaddingException("Unable to strip PKCS5 padding: invalid padding found")
 
     return m[:-last_byte]
