@@ -45,7 +45,8 @@ class UnexpectedAlgorithmException(KeystoreException): pass
 class UnexpectedKeyEncodingException(KeystoreException): pass
 
 class KeyStore(object):
-    def __init__(self, private_keys, certs, secret_keys):
+    def __init__(self, store_type, private_keys, certs, secret_keys):
+        self.store_type = store_type
         self.private_keys = private_keys
         self.certs = certs
         self.secret_keys = secret_keys
@@ -57,12 +58,12 @@ class KeyStore(object):
 
     @classmethod
     def loads(cls, data, password):
-        filetype = ''
+        store_type = ""
         magic_number = data[:4]
         if magic_number == MAGIC_NUMBER_JKS:
-            filetype = 'jks'
+            store_type = "jks"
         elif magic_number == MAGIC_NUMBER_JCEKS:
-            filetype = 'jceks'
+            store_type = "jceks"
         else:
             raise BadKeystoreFormatException('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
 
@@ -100,12 +101,12 @@ class KeyStore(object):
                 algo_params = encrypted_info['encryptionAlgorithm']['parameters'].asOctets()
                 encrypted_private_key = encrypted_info['encryptedData'].asOctets()
 
-                if filetype == 'jks':
+                if store_type == "jks":
                     if algo_id != SUN_JKS_ALGO_ID:
                         raise UnexpectedAlgorithmException("Unknown JKS private key algorithm OID: {0}".format(algo_id))
                     plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
 
-                elif filetype == 'jceks':
+                elif store_type == "jceks":
                     if algo_id == SUN_JKS_ALGO_ID:
                         plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
                     elif algo_id == SUN_JCE_ALGO_ID:
@@ -132,7 +133,7 @@ class KeyStore(object):
                 certs.append(Cert(alias, timestamp, cert_type, cert_data))
 
             elif tag == 3: # secret key
-                if filetype != 'jceks':
+                if store_type != "jceks":
                     raise BadKeystoreFormatException("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
 
                 # SecretKeys are stored in the key store file through Java's serialization mechanism, i.e. as an actual serialized Java object
@@ -231,7 +232,7 @@ class KeyStore(object):
         if expected_hash != data[pos:]:
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
-        return cls(private_keys, certs, secret_keys)
+        return cls(store_type, private_keys, certs, secret_keys)
 
 def _java_is_subclass(obj, class_name):
     """Given a deserialized JavaObject as returned by the javaobj library, determine whether it's a subclass of the given class name."""
