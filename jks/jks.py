@@ -35,11 +35,14 @@ SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non
 RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
 
 class KeystoreException(Exception): pass
+class KeystoreSignatureException(KeystoreException): pass
 class BadKeystoreFormatException(KeystoreException): pass
-class UnsupportedKeystoreFormatException(KeystoreException): pass
 class BadPaddingException(KeystoreException): pass
+class DecryptionFailureException(KeystoreException): pass
+class UnsupportedKeystoreFormatException(KeystoreException): pass
 class UnexpectedJavaTypeException(KeystoreException): pass
 class UnexpectedAlgorithmException(KeystoreException): pass
+class UnexpectedKeyEncodingException(KeystoreException): pass
 
 class KeyStore(object):
     def __init__(self, private_keys, certs, secret_keys):
@@ -113,7 +116,7 @@ class KeyStore(object):
                         try:
                             plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, password, salt, iteration_count)
                         except BadPaddingException:
-                            raise ValueError("Failed to decrypt data for private key '%s'; bad password?" % alias)
+                            raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % alias)
                     else:
                         raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
 
@@ -180,7 +183,7 @@ class KeyStore(object):
                     try:
                         plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, password, salt, iteration_count)
                     except BadPaddingException:
-                        raise ValueError("Failed to decrypt data for secret key '%s'; bad password?" % alias)
+                        raise DecryptionFailureException("Failed to decrypt data for secret key '%s'; bad password?" % alias)
                 else:
                     raise UnexpectedAlgorithmException("Unexpected algorithm used for encrypting SealedObject: sealAlg=%s" % sealed_obj.sealAlg)
 
@@ -212,7 +215,7 @@ class KeyStore(object):
                     elif key_encoding == "PKCS#8":
                         raise NotImplementedError("PKCS#8 encoding for KeyRep objects not yet implemented")
                     else:
-                        raise ValueError("Unexpected key encoding '%s' found in serialized java.security.KeyRep object; expected one of 'RAW', 'X.509', 'PKCS#8'." % key_encoding)
+                        raise UnexpectedKeyEncodingException("Unexpected key encoding '%s' found in serialized java.security.KeyRep object; expected one of 'RAW', 'X.509', 'PKCS#8'." % key_encoding)
 
                     key_size = len(key_bytes)*8
                     secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
@@ -226,7 +229,7 @@ class KeyStore(object):
         password_utf16 = password.encode('utf-16be')
         expected_hash = hashlib.sha1(password_utf16 + SIGNATURE_WHITENING + data[:pos]).digest()
         if expected_hash != data[pos:]:
-            raise ValueError("Hash mismatch; incorrect password or data corrupted")
+            raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
         return cls(private_keys, certs, secret_keys)
 
@@ -277,11 +280,11 @@ def _sun_jks_pkey_decrypt(data, password):
     xoring = zip(data, _jks_keystream(iv, password))
     key = ''.join([chr(ord(a) ^ ord(b)) for a, b in xoring])
     if hashlib.sha1(password + key).digest() != check:
-        raise ValueError("bad hash check on private key")
+        raise DecryptionFailureException("Bad hash check on private key; wrong password?")
     return key
 
 def _jks_keystream(iv, password):
-    'helper generator for _sun_pkey_decrypt'
+    """Helper keystream generator for _sun_jks_pkey_decrypt"""
     cur = iv
     while 1:
         cur = hashlib.sha1(password + cur).digest()
