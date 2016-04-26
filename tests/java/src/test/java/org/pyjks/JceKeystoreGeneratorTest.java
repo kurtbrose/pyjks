@@ -1,9 +1,6 @@
 package org.pyjks;
 
 import java.io.File;
-import java.security.KeyPair;
-import java.security.KeyPairGenerator;
-import java.security.cert.Certificate;
 import javax.crypto.Cipher;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
@@ -20,21 +17,14 @@ import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
- * Prepares a bunch of JCEKS key stores on disk for pyjks to parse and verify the contents of.
+ * Prepares JCEKS keystores that use features that are specific to JCE and are not supported by JKS keystores.
  */
 public class JceKeystoreGeneratorTest extends PyJksTestCase
 {
 	@BeforeClass
 	public static void setUpClass() throws Exception
 	{
-		File targetDirectory = new File("../keystores/jceks");
-		FileUtils.forceMkdir(targetDirectory);
-	}
-
-	@Test
-	public void jceks_empty() throws Exception
-	{
-		generateSecretKeyStore("../keystores/jceks/empty.jceks", null, "", "", "");
+		FileUtils.forceMkdir(new File("../keystores/jceks"));
 	}
 
 	@Test
@@ -74,18 +64,6 @@ public class JceKeystoreGeneratorTest extends PyJksTestCase
 	{
 		generateSecretKeyStore("../keystores/jceks/AES128.jceks", new SecretKeySpec(Hex.decodeHex("666e0221cc44c1fc4aabf458f9dfdd3c".toCharArray()), "AES"));
 		generateSecretKeyStore("../keystores/jceks/AES256.jceks", new SecretKeySpec(Hex.decodeHex("e7d7c262668221787b6b5a0f687712fde4be52e9e7d7c262668221787b6b5a0f".toCharArray()), "AES"));
-	}
-
-	@Test
-	public void jceks_RSA1024() throws Exception
-	{
-		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-		keyPairGenerator.initialize(1024);
-		KeyPair keyPair = keyPairGenerator.generateKeyPair();
-
-		Certificate cert = createSelfSignedCertificate(keyPair, "CN=RSA1024");
-
-		generatePrivateKeyStore("../keystores/jceks/RSA1024.jceks", keyPair.getPrivate(), new Certificate[] { cert });
 	}
 
 	@Test

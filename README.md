@@ -12,7 +12,7 @@ This is better:
 
 ## Requirements:
 
- * Python 2.6+ (no Python 3 support yet)
+ * Python 2.7+ or Python 3.4+
  * pyasn1 0.1.7+
  * pyasn1_modules 0.0.8+
  * javaobj-py3 0.1.4+
@@ -22,18 +22,19 @@ This is better:
 
 Reading a JKS or JCEKS keystore and dumping out its contents in the PEM format:
 ```python
+from __future__ import print_function
 import sys, base64, textwrap
 import jks
 
 def print_pem(der_bytes, type):
-    print "-----BEGIN %s-----" % type
-    print "\r\n".join(textwrap.wrap(base64.b64encode(der_bytes).decode('ascii'), 64))
-    print "-----END %s-----" % type
+    print("-----BEGIN %s-----" % type)
+    print("\r\n".join(textwrap.wrap(base64.b64encode(der_bytes).decode('ascii'), 64)))
+    print("-----END %s-----" % type)
 
 ks = jks.KeyStore.load("keystore.jks", "XXXXXXXX")
 
 for pk in ks.private_keys:
-    print "Private key: %s" % pk.alias
+    print("Private key: %s" % pk.alias)
     if pk.algorithm_oid == jks.RSA_ENCRYPTION_OID:
         print_pem(pk.pkey, "RSA PRIVATE KEY")
     else:
@@ -44,15 +45,15 @@ for pk in ks.private_keys:
     print
 
 for c in ks.certs:
-    print "Certificate: %s" % c.alias
+    print("Certificate: %s" % c.alias)
     print_pem(c.cert, "CERTIFICATE")
-    print
+    print()
 
 for sk in ks.secret_keys:
-    print "Secret key: %s" % sk.alias
-    print "  Algorithm: %s" % sk.algorithm
-    print "  Key size: %d bits" % sk.size
-    print "  Key: "+(''.join(x.encode('hex') for x in sk.key))
+    print("Secret key: %s" % sk.alias)
+    print("  Algorithm: %s" % sk.algorithm)
+    print("  Key size: %d bits" % sk.size)
+    print("  Key: %s" % "".join("{:02x}".format(b) for b in bytearray(sk.key)))
 ```
 
 
