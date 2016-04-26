@@ -1,6 +1,8 @@
 pyjks
 =====
 
+[![Join the chat at https://gitter.im/doublereedkurt/pyjks](https://badges.gitter.im/doublereedkurt/pyjks.svg)](https://gitter.im/doublereedkurt/pyjks?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
+
 A pure python Java KeyStore file parser, including private/secret key decryption. Can read both JKS and JCEKS key stores.
 
 The best way to utilize a certificate stored in a jks file up to this point has been
