@@ -33,30 +33,28 @@ def print_pem(der_bytes, type):
 
 ks = jks.KeyStore.load("keystore.jks", "XXXXXXXX")
 
-for alias, entry in ks.entries.items():
-    if isinstance(entry, jks.PrivateKeyEntry):
-        pk = entry
-        print("Private key: %s" % pk.alias)
-        if pk.algorithm_oid == jks.RSA_ENCRYPTION_OID:
-            print_pem(pk.pkey, "RSA PRIVATE KEY")
-        else:
-            print_pem(pk.pkey_pkcs8, "PRIVATE KEY")
-        for c in pk.cert_chain:
-            print_pem(c[1], "CERTIFICATE")
-        print()
+for alias, pk in ks.private_keys.items():
+    print("Private key: %s" % pk.alias)
+    if pk.algorithm_oid == jks.RSA_ENCRYPTION_OID:
+        print_pem(pk.pkey, "RSA PRIVATE KEY")
+    else:
+        print_pem(pk.pkey_pkcs8, "PRIVATE KEY")
 
-    elif isinstance(entry, jks.TrustedCertEntry):
-        c = entry
-        print("Certificate: %s" % c.alias)
-        print_pem(c.cert, "CERTIFICATE")
-        print()
+    for c in pk.cert_chain:
+        print_pem(c[1], "CERTIFICATE")
+    print()
 
-    elif isinstance(entry, jks.SecretKeyEntry):
-        sk = entry
-        print("Secret key: %s" % sk.alias)
-        print("  Algorithm: %s" % sk.algorithm)
-        print("  Key size: %d bits" % sk.key_size)
-        print("  Key: "+("".join("{:02x}".format(b) for b in bytearray(sk.key))))
+for alias, c in ks.certs.items():
+    print("Certificate: %s" % c.alias)
+    print_pem(c.cert, "CERTIFICATE")
+    print()
+
+for alias, sk in ks.secret_keys.items():
+    print("Secret key: %s" % sk.alias)
+    print("  Algorithm: %s" % sk.algorithm)
+    print("  Key size: %d bits" % sk.key_size)
+    print("  Key: %s" % "".join("{:02x}".format(b) for b in bytearray(sk.key)))
+	print()
 ```
 
 
@@ -69,15 +67,16 @@ _ASN1 = OpenSSL.crypto.FILETYPE_ASN1
 
 def jksfile2context(jks_file, passphrase, key_alias):
     keystore = jks.KeyStore.load(jks_file, passphrase)
-    pkey = OpenSSL.crypto.load_privatekey(_ASN1, keystore.entries[key_alias].pkey)
-    public_cert = OpenSSL.crypto.load_certificate(_ASN1, keystore.entries[key_alias].cert_chain[0][1])
-    trusted_certs = [OpenSSL.crypto.load_certificate(_ASN1, cert.cert) if isinstance(cert, jks.TrustedCertEntry) for alias, cert in keystore.entries]
+    pk_entry = keystore.private_keys[key_alias]
+
+    pkey = OpenSSL.crypto.load_privatekey(_ASN1, pk_entry.pkey)
+    public_cert = OpenSSL.crypto.load_certificate(_ASN1, pk_entry.cert_chain[0][1])
+    trusted_certs = [OpenSSL.crypto.load_certificate(_ASN1, cert.cert) for alias, cert in keystore.certs]
 
     ctx = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_METHOD)
     ctx.use_privatekey(pkey)
     ctx.use_certificate(public_cert)
-    #want to know ASAP if there is a problem with the protected
-    ctx.check_privatekey()
+    ctx.check_privatekey() # want to know ASAP if there is a problem
     cert_store = ctx.get_cert_store()
     for cert in trusted_certs:
         cert_store.add_cert(cert)

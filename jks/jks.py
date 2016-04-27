@@ -86,6 +86,18 @@ class KeyStore(object):
         self.store_type = store_type
         self.entries = dict(entries)
 
+    @property
+    def certs(self):
+        return {a:e for (a,e) in self.entries.items() if isinstance(e, TrustedCertEntry)}
+
+    @property
+    def secret_keys(self):
+        return {a:e for (a,e) in self.entries.items() if isinstance(e, SecretKeyEntry)}
+
+    @property
+    def private_keys(self):
+        return {a:e for (a,e) in self.entries.items() if isinstance(e, PrivateKeyEntry)}
+
     @classmethod
     def load(cls, filename, store_password, key_passwords={}):
         with open(filename, 'rb') as file:

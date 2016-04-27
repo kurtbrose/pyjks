@@ -5,6 +5,7 @@ Tests for pyjks.
 Note: run 'mvn test' in the tests/java directory to reproduce keystore files (requires a working Maven installation)
 """
 
+from __future__ import print_function
 import os, sys
 import jks
 import unittest
@@ -227,6 +228,28 @@ class MiscTests(AbstractTest):
         self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\xc4\x20\x59\xac\x54\x03\xc7\xbf", "my_password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 42))
         self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\xef\x9f\xbd\xc5\x91\x5f\x49\x50", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x05", 42))
         self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\x72\x8f\xd8\xcc\x21\x41\x25\x80", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x04", 42))
+
+    def test_filter_attributes(self):
+        ks = jks.KeyStore("jks", {})
+        self.assertEqual(len(list(ks.private_keys)), 0)
+        self.assertEqual(len(list(ks.secret_keys)), 0)
+        self.assertEqual(len(list(ks.certs)), 0)
+
+        dummy_entries = {
+            "1": jks.SecretKeyEntry(),
+            "2": jks.SecretKeyEntry(),
+            "3": jks.SecretKeyEntry(),
+            "4": jks.TrustedCertEntry(),
+            "5": jks.TrustedCertEntry(),
+            "6": jks.PrivateKeyEntry()
+        }
+        ks = jks.KeyStore("jks", dummy_entries)
+        self.assertEqual(len(ks.private_keys), 1)
+        self.assertEqual(len(ks.secret_keys), 3)
+        self.assertEqual(len(ks.certs), 2)
+        self.assertTrue(all(a in ks.secret_keys for a in ["1", "2", "3"]))
+        self.assertTrue(all(a in ks.private_keys for a in ["6"]))
+        self.assertTrue(all(a in ks.certs for a in ["4", "5"]))
 
 if __name__ == "__main__":
     unittest.main()
