@@ -63,12 +63,12 @@ class KeyStore(object):
         self.secret_keys = secret_keys
 
     @classmethod
-    def load(cls, filename, password):
+    def load(cls, filename, store_password, key_passwords={}):
         with open(filename, 'rb') as file:
-            return cls.loads(file.read(), password)
+            return cls.loads(file.read(), store_password, key_passwords=key_passwords)
 
     @classmethod
-    def loads(cls, data, password):
+    def loads(cls, data, store_password, key_passwords={}):
         store_type = ""
         magic_number = data[:4]
         if magic_number == MAGIC_NUMBER_JKS:
@@ -95,6 +95,8 @@ class KeyStore(object):
             timestamp = b8.unpack_from(data, pos)[0] # milliseconds since UNIX epoch
             pos += 8
 
+            key_password = key_passwords.get(alias, store_password)
+
             if tag == 1:  # private key
                 ber_data, pos = _read_data(data, pos)
                 chain_len = b4.unpack_from(data, pos)[0]
@@ -115,18 +117,18 @@ class KeyStore(object):
                 if store_type == "jks":
                     if algo_id != SUN_JKS_ALGO_ID:
                         raise UnexpectedAlgorithmException("Unknown JKS private key algorithm OID: {0}".format(algo_id))
-                    plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
+                    plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, key_password)
 
                 elif store_type == "jceks":
                     if algo_id == SUN_JKS_ALGO_ID:
-                        plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, password)
+                        plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, key_password)
                     elif algo_id == SUN_JCE_ALGO_ID:
                         # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
                         params = decoder.decode(algo_params, asn1Spec=rfc2898.PBEParameter())[0]
                         salt = params['salt'].asOctets()
                         iteration_count = int(params['iterationCount'])
                         try:
-                            plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, password, salt, iteration_count)
+                            plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, key_password, salt, iteration_count)
                         except BadPaddingException:
                             raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % alias)
                     else:
@@ -193,7 +195,7 @@ class KeyStore(object):
                     salt = params_asn1['salt'].asOctets()
                     iteration_count = int(params_asn1['iterationCount'])
                     try:
-                        plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, password, salt, iteration_count)
+                        plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, key_password, salt, iteration_count)
                     except BadPaddingException:
                         raise DecryptionFailureException("Failed to decrypt data for secret key '%s'; bad password?" % alias)
                 else:
@@ -238,8 +240,8 @@ class KeyStore(object):
                 raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
 
         # the keystore integrity check uses the UTF-16BE encoding of the password
-        password_utf16 = password.encode('utf-16be')
-        expected_hash = hashlib.sha1(password_utf16 + SIGNATURE_WHITENING + data[:pos]).digest()
+        store_password_utf16 = store_password.encode('utf-16be')
+        expected_hash = hashlib.sha1(store_password_utf16 + SIGNATURE_WHITENING + data[:pos]).digest()
         if expected_hash != data[pos:]:
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 

@@ -94,6 +94,19 @@ class JksTests(AbstractTest):
         self.assertEqual(cert3.cert, expected.RSA2048_3certs.certs[2])
         self.assertEqual(store.store_type, "jks")
 
+    def test_custom_entry_passwords(self):
+        # failure to provide individual entry passwords should result in decryption failures on the individual keys
+        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jks/custom_entry_passwords.jks", "store_password")
+        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jks/custom_entry_passwords.jks", "store_password", key_passwords={"private": "wrong_password"})
+        store = jks.KeyStore.load("tests/keystores/jks/custom_entry_passwords.jks", "store_password", key_passwords={"private": "private_password"})
+
+        pk = self.find_private_key(store, "private")
+        cert = self.find_cert(store, "cert")
+
+        self.assertEqual(store.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
+        self.assertEqual(cert.cert, expected.custom_entry_passwords.certs[0])
+
     def test_non_ascii_jks_password(self):
         store = jks.KeyStore.load("tests/keystores/jks/non_ascii_password.jks", u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
         pk = self.find_private_key(store, "mykey")
@@ -135,6 +148,24 @@ class JceTests(AbstractTest):
         self.assertEqual(cert2.cert, expected.RSA2048_3certs.certs[1])
         self.assertEqual(cert3.cert, expected.RSA2048_3certs.certs[2])
         self.assertEqual(store.store_type, "jceks")
+
+    def test_custom_entry_passwords(self):
+        # failure to provide individual entry passwords should result in decryption failures on the individual keys
+        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jceks/custom_entry_passwords.jceks", "store_password")
+        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jceks/custom_entry_passwords.jceks", "store_password", key_passwords={"private": "wrong_password", "secret_key": "secret_password"})
+        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jceks/custom_entry_passwords.jceks", "store_password", key_passwords={"private": "private_password", "secret_key": "wrong_password"})
+        store = jks.KeyStore.load("tests/keystores/jceks/custom_entry_passwords.jceks", "store_password", key_passwords={"private": "private_password", "secret": "secret_password"})
+
+        pk = self.find_private_key(store, "private")
+        sk = self.find_secret_key(store, "secret")
+        cert = self.find_cert(store, "cert")
+
+        self.assertEqual(store.store_type, "jceks")
+        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
+        self.assertEqual(sk.key, b"\x3f\x68\x05\x04\xc6\x6c\xc2\x5a\xae\x65\xd0\xfa\x49\xc5\x26\xec")
+        self.assertEqual(sk.algorithm, "AES")
+        self.assertEqual(sk.size, 128)
+        self.assertEqual(cert.cert, expected.custom_entry_passwords.certs[0])
 
 class JceOnlyTests(AbstractTest):
     def test_des_secret_key(self):
