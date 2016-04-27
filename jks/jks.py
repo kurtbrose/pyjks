@@ -113,159 +113,37 @@ class KeyStore(object):
         for i in range(entry_count):
             tag = b4.unpack_from(data, pos)[0]
             pos += 4
-            alias, pos = _read_utf(data, pos)
+            alias, pos = cls._read_utf(data, pos)
             timestamp = b8.unpack_from(data, pos)[0] # milliseconds since UNIX epoch
             pos += 8
 
             key_password = key_passwords.get(alias, store_password)
 
-            if tag == 1:  # private key
-                ber_data, pos = _read_data(data, pos)
-                chain_len = b4.unpack_from(data, pos)[0]
-                pos += 4
+            if tag == 1:
+                try:
+                    entry, pos = cls._read_private_key(data, pos, store_type, key_password=key_password)
+                except DecryptionFailureException:
+                    raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % alias)
 
-                cert_chain = []
-                for j in range(chain_len):
-                    cert_type, pos = _read_utf(data, pos)
-                    cert_data, pos = _read_data(data, pos)
-                    cert_chain.append((cert_type, cert_data))
+            elif tag == 2:
+                entry, pos = cls._read_trusted_cert(data, pos, store_type)
 
-                # at this point, 'ber_data' is a PKCS#8 EncryptedPrivateKeyInfo (see RFC 5208)
-                encrypted_info = decoder.decode(ber_data, asn1Spec=rfc5208.EncryptedPrivateKeyInfo())[0]
-                algo_id = encrypted_info['encryptionAlgorithm']['algorithm'].asTuple()
-                algo_params = encrypted_info['encryptionAlgorithm']['parameters'].asOctets()
-                encrypted_private_key = encrypted_info['encryptedData'].asOctets()
-
-                if store_type == "jks":
-                    if algo_id != SUN_JKS_ALGO_ID:
-                        raise UnexpectedAlgorithmException("Unknown JKS private key algorithm OID: {0}".format(algo_id))
-                    plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, key_password)
-
-                elif store_type == "jceks":
-                    if algo_id == SUN_JKS_ALGO_ID:
-                        plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, key_password)
-                    elif algo_id == SUN_JCE_ALGO_ID:
-                        # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
-                        params = decoder.decode(algo_params, asn1Spec=rfc2898.PBEParameter())[0]
-                        salt = params['salt'].asOctets()
-                        iteration_count = int(params['iterationCount'])
-                        try:
-                            plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, key_password, salt, iteration_count)
-                        except BadPaddingException:
-                            raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % alias)
-                    else:
-                        raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
-
-                # at this point, 'plaintext' is a PKCS#8 PrivateKeyInfo (see RFC 5208)
-                private_key_info = decoder.decode(plaintext, asn1Spec=rfc5208.PrivateKeyInfo())[0]
-                key = private_key_info['privateKey'].asOctets()
-                algorithm_oid = private_key_info['privateKeyAlgorithm']['algorithm'].asTuple()
-
-                entry = PrivateKeyEntry(alias=alias, timestamp=timestamp, pkey_pkcs8=plaintext, algorithm_oid=algorithm_oid, pkey=key, cert_chain=cert_chain)
-
-            elif tag == 2:  # cert
-                cert_type, pos = _read_utf(data, pos)
-                cert_data, pos = _read_data(data, pos)
-                entry = TrustedCertEntry(alias=alias, timestamp=timestamp, type=cert_type, cert=cert_data)
-
-            elif tag == 3: # secret key
+            elif tag == 3:
                 if store_type != "jceks":
                     raise BadKeystoreFormatException("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
-
-                # SecretKeys are stored in the key store file through Java's serialization mechanism, i.e. as an actual serialized Java object
-                # embedded inside the file. The objects that get stored are not the SecretKey instances themselves though, as that would trivially
-                # expose the key without the need for a passphrase to gain access to it.
-                #
-                # Instead, an object of type javax.crypto.SealedObject is written. The purpose of this class is specifically to securely
-                # serialize objects that contain secret values by applying a password-based encryption scheme to the serialized form of the object
-                # to be protected. Only the resulting ciphertext is then stored by the serialized form of the SealedObject instance.
-                #
-                # To decrypt the SealedObject, the correct passphrase must be given to be able to decrypt the underlying object's serialized form.
-                # Once decrypted, one more de-serialization will result in the original object being restored.
-                #
-                # The default key protector used by the SunJCE provider returns an instance of type SealedObjectForKeyProtector, a (direct)
-                # subclass of SealedObject, which uses Java's custom/unpublished PBEWithMD5AndTripleDES algorithm.
-                #
-                # Class member structure:
-                #
-                # SealedObjectForKeyProtector:
-                #   static final long serialVersionUID = -3650226485480866989L;
-                #
-                # SealedObject:
-                #   static final long serialVersionUID = 4482838265551344752L;
-                #   private byte[] encryptedContent;         # The serialized underlying object, in encrypted format.
-                #   private String sealAlg;                  # The algorithm that was used to seal this object.
-                #   private String paramsAlg;                # The algorithm of the parameters used.
-                #   protected byte[] encodedParams;          # The cryptographic parameters used by the sealing Cipher, encoded in the default format.
-
-                sealed_obj, pos = _read_java_obj(data, pos, ignore_remaining_data=True)
-                if not _java_is_subclass(sealed_obj, "javax.crypto.SealedObject"):
-                    raise UnexpectedJavaTypeException("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
-
-                sealed_obj.encryptedContent = _java_bytestring(sealed_obj.encryptedContent)
-
-                plaintext = ""
-                if sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
-                    # if the object was sealed with PBEWithMD5AndTripleDES then the parameters should apply to the same algorithm and not be empty or null
-                    if sealed_obj.paramsAlg != sealed_obj.sealAlg:
-                        raise UnexpectedAlgorithmException("Unexpected parameters algorithm used in SealedObject; should match sealing algorithm '%s' but found '%s'" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
-                    if sealed_obj.encodedParams is None or len(sealed_obj.encodedParams) == 0:
-                        raise UnexpectedJavaTypeException("No parameters found in SealedObject instance for sealing algorithm '%s'; need at least a salt and iteration count to decrypt" % sealed_obj.sealAlg)
-
-                    sealed_obj.encodedParams = _java_bytestring(sealed_obj.encodedParams)
-
-                    params_asn1 = decoder.decode(sealed_obj.encodedParams, asn1Spec=rfc2898.PBEParameter())[0]
-                    salt = params_asn1['salt'].asOctets()
-                    iteration_count = int(params_asn1['iterationCount'])
-                    try:
-                        plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, key_password, salt, iteration_count)
-                    except BadPaddingException:
-                        raise DecryptionFailureException("Failed to decrypt data for secret key '%s'; bad password?" % alias)
-                else:
-                    raise UnexpectedAlgorithmException("Unexpected algorithm used for encrypting SealedObject: sealAlg=%s" % sealed_obj.sealAlg)
-
-                # The plaintext here is another serialized Java object; this time it's an object implementing the javax.crypto.SecretKey interface.
-                # When using the default SunJCE provider, these are usually either javax.crypto.spec.SecretKeySpec objects, or some other specialized ones
-                # like those found in the com.sun.crypto.provider package (e.g. DESKey and DESedeKey).
-                #
-                # Additionally, things are further complicated by the fact that some of these specialized SecretKey implementations (i.e. other than SecretKeySpec)
-                # implement a writeReplace() method, causing Java's serialization runtime to swap out the object for a completely different one at serialization time.
-                # Again for SunJCE, the subsitute object that gets serialized is usually a java.security.KeyRep object.
-
-                obj, dummy = _read_java_obj(plaintext, 0)
-                clazz = obj.get_class()
-                if clazz.name == "javax.crypto.spec.SecretKeySpec":
-                    key_algorithm = obj.algorithm
-                    key_bytes = _java_bytestring(obj.key)
-                    key_size = len(key_bytes)*8
-
-                elif clazz.name == "java.security.KeyRep":
-                    assert (obj.type.constant == "SECRET"), "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type.constant
-                    key_algorithm = obj.algorithm
-                    key_encoding = obj.format
-                    key_bytes = _java_bytestring(obj.encoded)
-                    if key_encoding == "RAW":
-                        pass # ok, no further processing needed
-                    elif key_encoding == "X.509":
-                        raise NotImplementedError("X.509 encoding for KeyRep objects not yet implemented")
-                    elif key_encoding == "PKCS#8":
-                        raise NotImplementedError("PKCS#8 encoding for KeyRep objects not yet implemented")
-                    else:
-                        raise UnexpectedKeyEncodingException("Unexpected key encoding '%s' found in serialized java.security.KeyRep object; expected one of 'RAW', 'X.509', 'PKCS#8'." % key_encoding)
-
-                    key_size = len(key_bytes)*8
-                else:
-                    raise UnexpectedJavaTypeException("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % clazz.name)
-
-                entry = SecretKeyEntry(alias=alias, timestamp=timestamp, algorithm=key_algorithm, key=key_bytes, key_size=key_size)
-
+                try:
+                    entry, pos = cls._read_secret_key(data, pos, store_type, key_password=key_password)
+                except DecryptionFailureException:
+                    raise DecryptionFailureException("Failed to decrypt data for secret key '%s'; bad password?" % alias)
             else:
                 raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
+
+            entry.alias = alias
+            entry.timestamp = timestamp
 
             if alias in entries:
                 raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
             entries[alias] = entry
-
 
         # the keystore integrity check uses the UTF-16BE encoding of the password
         store_password_utf16 = store_password.encode('utf-16be')
@@ -275,40 +153,191 @@ class KeyStore(object):
 
         return cls(store_type, entries)
 
-def _java_is_subclass(obj, class_name):
-    """Given a deserialized JavaObject as returned by the javaobj library, determine whether it's a subclass of the given class name."""
-    clazz = obj.get_class()
-    while clazz:
-        if clazz.name == class_name:
-            return True
-        clazz = clazz.superclass
-    return False
+    @classmethod
+    def _read_trusted_cert(cls, data, pos, store_type):
+        cert_type, pos = cls._read_utf(data, pos)
+        cert_data, pos = cls._read_data(data, pos)
+        entry = TrustedCertEntry(type=cert_type, cert=cert_data)
+        return entry, pos
 
-def _java_bytestring(java_byte_list):
-    """
-    Convert the value returned by javaobj for a byte[] to a byte string.
-    Java's bytes are signed and numeric (i.e. not chars), so javaobj returns Java byte arrays as a list of Python integers in the range [-128, 127].
-    For ease of use we want to get a byte string representation of that, so we reinterpret each integer as an unsigned byte, take its new value
-    as another Python int (now remapped to the range [0, 255]), and use struct.pack() to create the matching byte string.
-    """
-    return struct.pack("%dB" % len(java_byte_list), *[ctypes.c_ubyte(sb).value for sb in java_byte_list])
+    @classmethod
+    def _read_private_key(cls, data, pos, store_type, key_password=""):
+        ber_data, pos = cls._read_data(data, pos)
+        chain_len = b4.unpack_from(data, pos)[0]
+        pos += 4
 
-def _read_utf(data, pos):
-    size = b2.unpack_from(data, pos)[0]
-    pos += 2
-    return data[pos:pos+size].decode('utf-8'), pos+size
+        cert_chain = []
+        for j in range(chain_len):
+            cert_type, pos = cls._read_utf(data, pos)
+            cert_data, pos = cls._read_data(data, pos)
+            cert_chain.append((cert_type, cert_data))
 
-def _read_data(data, pos):
-    size = b4.unpack_from(data, pos)[0]
-    pos += 4
-    return data[pos:pos+size], pos+size
+        # at this point, 'ber_data' is a PKCS#8 EncryptedPrivateKeyInfo (see RFC 5208)
+        encrypted_info = decoder.decode(ber_data, asn1Spec=rfc5208.EncryptedPrivateKeyInfo())[0]
+        algo_id = encrypted_info['encryptionAlgorithm']['algorithm'].asTuple()
+        algo_params = encrypted_info['encryptionAlgorithm']['parameters'].asOctets()
+        encrypted_private_key = encrypted_info['encryptedData'].asOctets()
 
-def _read_java_obj(data, pos, ignore_remaining_data=False):
-    data_stream = BytesIO(data[pos:])
-    obj = javaobj.load(data_stream, ignore_remaining_data=ignore_remaining_data)
-    obj_size = data_stream.tell()
+        if store_type == "jks":
+            if algo_id != SUN_JKS_ALGO_ID:
+                raise UnexpectedAlgorithmException("Unknown JKS private key algorithm OID: {0}".format(algo_id))
+            plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, key_password)
 
-    return obj, pos + obj_size
+        elif store_type == "jceks":
+            if algo_id == SUN_JKS_ALGO_ID:
+                plaintext = _sun_jks_pkey_decrypt(encrypted_private_key, key_password)
+            elif algo_id == SUN_JCE_ALGO_ID:
+                # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
+                params = decoder.decode(algo_params, asn1Spec=rfc2898.PBEParameter())[0]
+                salt = params['salt'].asOctets()
+                iteration_count = int(params['iterationCount'])
+                try:
+                    plaintext = _sun_jce_pbe_decrypt(encrypted_private_key, key_password, salt, iteration_count)
+                except BadPaddingException:
+                    raise DecryptionFailureException()
+            else:
+                raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
+
+        # at this point, 'plaintext' is a PKCS#8 PrivateKeyInfo (see RFC 5208)
+        private_key_info = decoder.decode(plaintext, asn1Spec=rfc5208.PrivateKeyInfo())[0]
+        key = private_key_info['privateKey'].asOctets()
+        algorithm_oid = private_key_info['privateKeyAlgorithm']['algorithm'].asTuple()
+
+        entry = PrivateKeyEntry(pkey=key, pkey_pkcs8=plaintext, algorithm_oid=algorithm_oid, cert_chain=cert_chain)
+        return entry, pos
+
+    @classmethod
+    def _read_secret_key(cls, data, pos, store_type, key_password=""):
+        # SecretKeys are stored in the key store file through Java's serialization mechanism, i.e. as an actual serialized Java object
+        # embedded inside the file. The objects that get stored are not the SecretKey instances themselves though, as that would trivially
+        # expose the key without the need for a passphrase to gain access to it.
+        #
+        # Instead, an object of type javax.crypto.SealedObject is written. The purpose of this class is specifically to securely
+        # serialize objects that contain secret values by applying a password-based encryption scheme to the serialized form of the object
+        # to be protected. Only the resulting ciphertext is then stored by the serialized form of the SealedObject instance.
+        #
+        # To decrypt the SealedObject, the correct passphrase must be given to be able to decrypt the underlying object's serialized form.
+        # Once decrypted, one more de-serialization will result in the original object being restored.
+        #
+        # The default key protector used by the SunJCE provider returns an instance of type SealedObjectForKeyProtector, a (direct)
+        # subclass of SealedObject, which uses Java's custom/unpublished PBEWithMD5AndTripleDES algorithm.
+        #
+        # Class member structure:
+        #
+        # SealedObjectForKeyProtector:
+        #   static final long serialVersionUID = -3650226485480866989L;
+        #
+        # SealedObject:
+        #   static final long serialVersionUID = 4482838265551344752L;
+        #   private byte[] encryptedContent;         # The serialized underlying object, in encrypted format.
+        #   private String sealAlg;                  # The algorithm that was used to seal this object.
+        #   private String paramsAlg;                # The algorithm of the parameters used.
+        #   protected byte[] encodedParams;          # The cryptographic parameters used by the sealing Cipher, encoded in the default format.
+
+        sealed_obj, pos = cls._read_java_obj(data, pos, ignore_remaining_data=True)
+        if not cls._java_is_subclass(sealed_obj, "javax.crypto.SealedObject"):
+            raise UnexpectedJavaTypeException("Unexpected sealed object type '%s'; not a subclass of javax.crypto.SealedObject" % sealed_obj.get_class().name)
+
+        sealed_obj.encryptedContent = cls._java_bytestring(sealed_obj.encryptedContent)
+
+        plaintext = ""
+        if sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
+            # if the object was sealed with PBEWithMD5AndTripleDES then the parameters should apply to the same algorithm and not be empty or null
+            if sealed_obj.paramsAlg != sealed_obj.sealAlg:
+                raise UnexpectedAlgorithmException("Unexpected parameters algorithm used in SealedObject; should match sealing algorithm '%s' but found '%s'" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
+            if sealed_obj.encodedParams is None or len(sealed_obj.encodedParams) == 0:
+                raise UnexpectedJavaTypeException("No parameters found in SealedObject instance for sealing algorithm '%s'; need at least a salt and iteration count to decrypt" % sealed_obj.sealAlg)
+
+            sealed_obj.encodedParams = cls._java_bytestring(sealed_obj.encodedParams)
+
+            params_asn1 = decoder.decode(sealed_obj.encodedParams, asn1Spec=rfc2898.PBEParameter())[0]
+            salt = params_asn1['salt'].asOctets()
+            iteration_count = int(params_asn1['iterationCount'])
+            try:
+                plaintext = _sun_jce_pbe_decrypt(sealed_obj.encryptedContent, key_password, salt, iteration_count)
+            except BadPaddingException:
+                raise DecryptionFailureException()
+        else:
+            raise UnexpectedAlgorithmException("Unexpected algorithm used for encrypting SealedObject: sealAlg=%s" % sealed_obj.sealAlg)
+
+        # The plaintext here is another serialized Java object; this time it's an object implementing the javax.crypto.SecretKey interface.
+        # When using the default SunJCE provider, these are usually either javax.crypto.spec.SecretKeySpec objects, or some other specialized ones
+        # like those found in the com.sun.crypto.provider package (e.g. DESKey and DESedeKey).
+        #
+        # Additionally, things are further complicated by the fact that some of these specialized SecretKey implementations (i.e. other than SecretKeySpec)
+        # implement a writeReplace() method, causing Java's serialization runtime to swap out the object for a completely different one at serialization time.
+        # Again for SunJCE, the subsitute object that gets serialized is usually a java.security.KeyRep object.
+        entry = SecretKeyEntry()
+
+        obj, dummy = cls._read_java_obj(plaintext, 0)
+        clazz = obj.get_class()
+        if clazz.name == "javax.crypto.spec.SecretKeySpec":
+            entry.algorithm = obj.algorithm
+            entry.key = cls._java_bytestring(obj.key)
+            entry.key_size = len(entry.key)*8
+
+        elif clazz.name == "java.security.KeyRep":
+            assert (obj.type.constant == "SECRET"), "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type.constant
+            key_bytes = cls._java_bytestring(obj.encoded)
+            key_encoding = obj.format
+            if key_encoding == "RAW":
+                pass # ok, no further processing needed
+            elif key_encoding == "X.509":
+                raise NotImplementedError("X.509 encoding for KeyRep objects not yet implemented")
+            elif key_encoding == "PKCS#8":
+                raise NotImplementedError("PKCS#8 encoding for KeyRep objects not yet implemented")
+            else:
+                raise UnexpectedKeyEncodingException("Unexpected key encoding '%s' found in serialized java.security.KeyRep object; expected one of 'RAW', 'X.509', 'PKCS#8'." % key_encoding)
+
+            entry.algorithm = obj.algorithm
+            entry.key = key_bytes
+            entry.key_size = len(entry.key)*8
+        else:
+            raise UnexpectedJavaTypeException("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % clazz.name)
+
+        return entry, pos
+
+
+    @classmethod
+    def _read_utf(cls, data, pos):
+        size = b2.unpack_from(data, pos)[0]
+        pos += 2
+        return data[pos:pos+size].decode('utf-8'), pos+size
+
+    @classmethod
+    def _read_data(cls, data, pos):
+        size = b4.unpack_from(data, pos)[0]
+        pos += 4
+        return data[pos:pos+size], pos+size
+
+    @classmethod
+    def _read_java_obj(cls, data, pos, ignore_remaining_data=False):
+        data_stream = BytesIO(data[pos:])
+        obj = javaobj.load(data_stream, ignore_remaining_data=ignore_remaining_data)
+        obj_size = data_stream.tell()
+
+        return obj, pos + obj_size
+
+    @classmethod
+    def _java_is_subclass(cls, obj, class_name):
+        """Given a deserialized JavaObject as returned by the javaobj library, determine whether it's a subclass of the given class name."""
+        clazz = obj.get_class()
+        while clazz:
+            if clazz.name == class_name:
+                return True
+            clazz = clazz.superclass
+        return False
+
+    @classmethod
+    def _java_bytestring(cls, java_byte_list):
+        """
+        Convert the value returned by javaobj for a byte[] to a byte string.
+        Java's bytes are signed and numeric (i.e. not chars), so javaobj returns Java byte arrays as a list of Python integers in the range [-128, 127].
+        For ease of use we want to get a byte string representation of that, so we reinterpret each integer as an unsigned byte, take its new value
+        as another Python int (now remapped to the range [0, 255]), and use struct.pack() to create the matching byte string.
+        """
+        return struct.pack("%dB" % len(java_byte_list), *[ctypes.c_ubyte(sb).value for sb in java_byte_list])
+
 
 def _sun_jks_pkey_decrypt(data, password_str):
     """
