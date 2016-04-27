@@ -26,10 +26,6 @@ try:
 except ImportError:
     from io import BytesIO # python3
 
-Cert = collections.namedtuple("Cert", "alias timestamp type cert")
-PrivateKey = collections.namedtuple("PrivateKey", "alias timestamp pkey_pkcs8 algorithm_oid pkey cert_chain")
-SecretKey = collections.namedtuple("SecretKey", "alias timestamp algorithm key size")
-
 b8 = struct.Struct('>Q')
 b4 = struct.Struct('>L')
 b2 = struct.Struct('>H')
@@ -47,6 +43,7 @@ DSA_WITH_SHA1_OID = (1,2,840,10040,4,3) # identifier for the DSA signature algor
 
 class KeystoreException(Exception): pass
 class KeystoreSignatureException(KeystoreException): pass
+class DuplicateAliasException(KeystoreException): pass
 class BadKeystoreFormatException(KeystoreException): pass
 class BadPaddingException(KeystoreException): pass
 class DecryptionFailureException(KeystoreException): pass
@@ -55,12 +52,39 @@ class UnexpectedJavaTypeException(KeystoreException): pass
 class UnexpectedAlgorithmException(KeystoreException): pass
 class UnexpectedKeyEncodingException(KeystoreException): pass
 
+class AbstractKeystoreEntry(object):
+    def __init__(self, **kwargs):
+        super(AbstractKeystoreEntry, self).__init__()
+        self.alias = kwargs.get("alias")
+        self.timestamp = kwargs.get("timestamp")
+
+class TrustedCertEntry(AbstractKeystoreEntry):
+    def __init__(self, **kwargs):
+        super(TrustedCertEntry, self).__init__(**kwargs)
+        self.type = kwargs.get("type")
+        self.cert = kwargs.get("cert")
+
+class PrivateKeyEntry(AbstractKeystoreEntry):
+    def __init__(self, **kwargs):
+        super(PrivateKeyEntry, self).__init__(**kwargs)
+        self.pkey = kwargs.get("pkey")
+        self.pkey_pkcs8 = kwargs.get("pkey_pkcs8")
+        self.algorithm_oid = kwargs.get("algorithm_oid")
+        self.cert_chain = kwargs.get("cert_chain")
+
+class SecretKeyEntry(AbstractKeystoreEntry):
+    def __init__(self, **kwargs):
+        super(SecretKeyEntry, self).__init__(**kwargs)
+        self.algorithm = kwargs.get("algorithm")
+        self.key = kwargs.get("key")
+        self.key_size = kwargs.get("key_size")
+
+# --------------------------------------------------------------------------
+
 class KeyStore(object):
-    def __init__(self, store_type, private_keys, certs, secret_keys):
+    def __init__(self, store_type, entries):
         self.store_type = store_type
-        self.private_keys = private_keys
-        self.certs = certs
-        self.secret_keys = secret_keys
+        self.entries = dict(entries)
 
     @classmethod
     def load(cls, filename, store_password, key_passwords={}):
@@ -82,9 +106,7 @@ class KeyStore(object):
         if version != 2:
             raise UnsupportedKeystoreFormatException('Unsupported keystore version; only v2 supported, found v'+repr(version))
 
-        private_keys = []
-        secret_keys = []
-        certs = []
+        entries = {}
 
         entry_count = b4.unpack_from(data, 8)[0]
         pos = 12
@@ -138,12 +160,13 @@ class KeyStore(object):
                 private_key_info = decoder.decode(plaintext, asn1Spec=rfc5208.PrivateKeyInfo())[0]
                 key = private_key_info['privateKey'].asOctets()
                 algorithm_oid = private_key_info['privateKeyAlgorithm']['algorithm'].asTuple()
-                private_keys.append(PrivateKey(alias, timestamp, plaintext, algorithm_oid, key, cert_chain))
+
+                entry = PrivateKeyEntry(alias=alias, timestamp=timestamp, pkey_pkcs8=plaintext, algorithm_oid=algorithm_oid, pkey=key, cert_chain=cert_chain)
 
             elif tag == 2:  # cert
                 cert_type, pos = _read_utf(data, pos)
                 cert_data, pos = _read_data(data, pos)
-                certs.append(Cert(alias, timestamp, cert_type, cert_data))
+                entry = TrustedCertEntry(alias=alias, timestamp=timestamp, type=cert_type, cert=cert_data)
 
             elif tag == 3: # secret key
                 if store_type != "jceks":
@@ -215,7 +238,6 @@ class KeyStore(object):
                     key_algorithm = obj.algorithm
                     key_bytes = _java_bytestring(obj.key)
                     key_size = len(key_bytes)*8
-                    secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
 
                 elif clazz.name == "java.security.KeyRep":
                     assert (obj.type.constant == "SECRET"), "Expected value 'SECRET' for KeyRep.type enum value, found '%s'" % obj.type.constant
@@ -232,12 +254,18 @@ class KeyStore(object):
                         raise UnexpectedKeyEncodingException("Unexpected key encoding '%s' found in serialized java.security.KeyRep object; expected one of 'RAW', 'X.509', 'PKCS#8'." % key_encoding)
 
                     key_size = len(key_bytes)*8
-                    secret_keys.append(SecretKey(alias, timestamp, key_algorithm, key_bytes, key_size))
                 else:
                     raise UnexpectedJavaTypeException("Unexpected object of type '%s' found inside SealedObject; don't know how to handle it" % clazz.name)
 
+                entry = SecretKeyEntry(alias=alias, timestamp=timestamp, algorithm=key_algorithm, key=key_bytes, key_size=key_size)
+
             else:
                 raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
+
+            if alias in entries:
+                raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
+            entries[alias] = entry
+
 
         # the keystore integrity check uses the UTF-16BE encoding of the password
         store_password_utf16 = store_password.encode('utf-16be')
@@ -245,7 +273,7 @@ class KeyStore(object):
         if expected_hash != data[pos:]:
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
-        return cls(store_type, private_keys, certs, secret_keys)
+        return cls(store_type, entries)
 
 def _java_is_subclass(obj, class_name):
     """Given a deserialized JavaObject as returned by the javaobj library, determine whether it's a subclass of the given class name."""

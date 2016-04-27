@@ -23,28 +23,31 @@ class cd:
 
 class AbstractTest(unittest.TestCase):
     def find_private_key(self, ks, alias):
-        for pk in ks.private_keys:
-            if pk.alias == alias:
-                self.assertTrue(isinstance(pk.pkey, bytes))
-                self.assertTrue(isinstance(pk.pkey_pkcs8, bytes))
-                self.assertTrue(isinstance(pk.cert_chain, list))
-                self.assertTrue(all(isinstance(c[1], bytes) for c in pk.cert_chain))
-                return pk
-        self.fail("Private key entry not found: %s" % alias)
+        pk = ks.entries[alias]
+        if not isinstance(pk, jks.PrivateKeyEntry):
+            self.fail("Private key entry not found: %s" % alias)
+
+        self.assertTrue(isinstance(pk.pkey, bytes))
+        self.assertTrue(isinstance(pk.pkey_pkcs8, bytes))
+        self.assertTrue(isinstance(pk.cert_chain, list))
+        self.assertTrue(all(isinstance(c[1], bytes) for c in pk.cert_chain))
+        return pk
 
     def find_secret_key(self, ks, alias):
-        for sk in ks.secret_keys:
-            if sk.alias == alias:
-                self.assertTrue(isinstance(sk.key, bytes))
-                return sk
-        self.fail("Secret key entry not found: %s" % alias)
+        sk = ks.entries[alias]
+        if not isinstance(sk, jks.SecretKeyEntry):
+            self.fail("Secret key entry not found: %s" % alias)
+
+        self.assertTrue(isinstance(sk.key, bytes))
+        return sk
 
     def find_cert(self, ks, alias):
-        for c in ks.certs:
-            if c.alias == alias:
-                self.assertTrue(isinstance(c.cert, bytes))
-                return c
-        self.fail("Certificate entry not found: %s" % alias)
+        c = ks.entries[alias]
+        if not isinstance(c, jks.TrustedCertEntry):
+            self.fail("Certificate entry not found: %s" % alias)
+
+        self.assertTrue(isinstance(c.cert, bytes))
+        return c
 
     def check_pkey_and_certs_equal(self, pk, algorithm_oid, pkey_pkcs8, certs):
         self.assertEqual(pk.algorithm_oid, algorithm_oid)
@@ -55,16 +58,14 @@ class AbstractTest(unittest.TestCase):
 
     def check_secret_key_equal(self, sk, algorithm_name, key_size, key_bytes):
         self.assertEqual(sk.algorithm, algorithm_name)
-        self.assertEqual(sk.size, key_size)
+        self.assertEqual(sk.key_size, key_size)
         self.assertEqual(sk.key, key_bytes)
 
 class JksTests(AbstractTest):
     def test_empty_store(self):
         store = jks.KeyStore.load("tests/keystores/jks/empty.jks", "")
         self.assertEqual(store.store_type, "jks")
-        self.assertEqual(len(store.private_keys), 0)
-        self.assertEqual(len(store.secret_keys), 0)
-        self.assertEqual(len(store.certs), 0)
+        self.assertEqual(len(store.entries), 0)
 
     def test_rsa_1024(self):
         store = jks.KeyStore.load("tests/keystores/jks/RSA1024.jks", "12345678")
@@ -117,9 +118,7 @@ class JceTests(AbstractTest):
     def test_empty_store(self):
         store = jks.KeyStore.load("tests/keystores/jceks/empty.jceks", "")
         self.assertEqual(store.store_type, "jceks")
-        self.assertEqual(len(store.private_keys), 0)
-        self.assertEqual(len(store.secret_keys), 0)
-        self.assertEqual(len(store.certs), 0)
+        self.assertEqual(len(store.entries), 0)
 
     def test_rsa_1024(self):
         store = jks.KeyStore.load("tests/keystores/jceks/RSA1024.jceks", "12345678")
@@ -164,7 +163,7 @@ class JceTests(AbstractTest):
         self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
         self.assertEqual(sk.key, b"\x3f\x68\x05\x04\xc6\x6c\xc2\x5a\xae\x65\xd0\xfa\x49\xc5\x26\xec")
         self.assertEqual(sk.algorithm, "AES")
-        self.assertEqual(sk.size, 128)
+        self.assertEqual(sk.key_size, 128)
         self.assertEqual(cert.cert, expected.custom_entry_passwords.certs[0])
 
 class JceOnlyTests(AbstractTest):
