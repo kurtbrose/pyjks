@@ -25,17 +25,14 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 	@Test
 	public void generate_empty() throws Exception
 	{
-		generatePrivateKeyStore("JKS",   "../keystores/jks/empty.jks",     null, null, "", "", "");
-		generatePrivateKeyStore("JCEKS", "../keystores/jceks/empty.jceks", null, null, "", "", "");
+		generateKeyStore("JKS",   "../keystores/jks/empty.jks", null, null, "");
+		generateKeyStore("JCEKS", "../keystores/jceks/empty.jceks", null, null, "");
 	}
 
 	@Test
 	public void generate_RSA1024() throws Exception
 	{
-		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-		keyPairGenerator.initialize(1024);
-		KeyPair keyPair = keyPairGenerator.generateKeyPair();
-
+		KeyPair keyPair = generateKeyPair("RSA", 1024);
 		Certificate cert = createSelfSignedCertificate(keyPair, "CN=RSA1024");
 		Certificate[] certs = new Certificate[]{cert};
 
@@ -48,9 +45,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 	@Test
 	public void generate_RSA2048_3certs() throws Exception
 	{
-		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-		keyPairGenerator.initialize(2048);
-		KeyPair keyPair = keyPairGenerator.generateKeyPair();
+		KeyPair keyPair = generateKeyPair("RSA", 2048);
 
 		// these do not form a chain, but that doesn't really matter for our purposes
 		Certificate cert1 = createSelfSignedCertificate(keyPair, "CN=RSA2048, O=1");
@@ -72,11 +67,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 	@Test
 	public void generate_DSA2048() throws Exception
 	{
-		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("DSA");
-		keyPairGenerator.initialize(2048);
-		KeyPair keyPair = keyPairGenerator.generateKeyPair();
-
-		// these do not form a chain, but that doesn't really matter for our purposes
+		KeyPair keyPair = generateKeyPair("DSA", 2048);
 		Certificate cert = createSelfSignedCertificate(keyPair, "CN=DSA2048");
 		Certificate[] certs = new Certificate[]{ cert };
 
@@ -91,9 +82,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 	{
 		// The JKS keystore protector algorithm says that the password is expected to be ASCII but it doesn't enforce that,
 		// so there's nothing stopping you from using non-ASCII passwords anyway. Let's generate one and see if we can parse it.
-		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance("RSA");
-		keyPairGenerator.initialize(2048);
-		KeyPair keyPair = keyPairGenerator.generateKeyPair();
+		KeyPair keyPair = generateKeyPair("RSA", 2048);
 
 		Certificate cert = createSelfSignedCertificate(keyPair, "CN=non_ascii_password");
 		Certificate[] certs = new Certificate[]{cert};
