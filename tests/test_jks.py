@@ -109,6 +109,9 @@ class JksTests(AbstractTest):
         self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
         self.assertEqual(cert.cert, expected.custom_entry_passwords.certs[0])
 
+    def test_duplicate_aliases(self):
+        self.assertRaises(jks.DuplicateAliasException, jks.KeyStore.load, "tests/keystores/jks/duplicate_aliases.jks", "12345678")
+
     def test_non_ascii_jks_password(self):
         store = jks.KeyStore.load("tests/keystores/jks/non_ascii_password.jks", u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
         pk = self.find_private_key(store, "mykey")
@@ -166,6 +169,9 @@ class JceTests(AbstractTest):
         self.assertEqual(sk.algorithm, "AES")
         self.assertEqual(sk.key_size, 128)
         self.assertEqual(cert.cert, expected.custom_entry_passwords.certs[0])
+
+    def test_duplicate_aliases(self):
+        self.assertRaises(jks.DuplicateAliasException, jks.KeyStore.load, "tests/keystores/jceks/duplicate_aliases.jceks", "12345678")
 
 class JceOnlyTests(AbstractTest):
     def test_des_secret_key(self):

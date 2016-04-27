@@ -1,6 +1,7 @@
 package org.pyjks;
 
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -43,6 +44,10 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
  */
 public class PyJksTestCase
 {
+	public static int TAG_PRIVATE_KEY = 1;
+	public static int TAG_TRUSTED_CERT = 2;
+	public static int TAG_SECRET_KEY = 3;
+
 	public static String toPythonString(byte[] data, int bytesPerLine, String leftPadding)
 	{
 		char[] hexChars = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e','f'};
@@ -260,7 +265,7 @@ public class PyJksTestCase
 		dos.writeInt(0xCECECECE); // JCE magic bytes
 		dos.writeInt(2); // keystore version
 		dos.writeInt(1); // number of entries
-		dos.writeInt(3); // secret key tag
+		dos.writeInt(TAG_SECRET_KEY);
 		dos.writeShort(alias.length());
 		dos.write(alias.getBytes("UTF-8"));
 		dos.writeLong(System.currentTimeMillis());
@@ -272,6 +277,33 @@ public class PyJksTestCase
 		dos.write(md.digest());
 		dos.flush();
 		oos.close();
+	}
+
+	protected void generateManualStore(String storeType, String filename, String[] aliases, int[] tags, byte[][] entriesData, String storePassword) throws Exception
+	{
+		MessageDigest md = getJceStoreDigest(storePassword);
+
+		DataOutputStream dos = new DataOutputStream(new DigestOutputStream(new BufferedOutputStream(new FileOutputStream(filename)), md));
+		dos.writeInt("JCEKS".equals(storeType) ? 0xCECECECE : 0xFEEDFEED);
+		dos.writeInt(2); // keystore version
+		dos.writeInt(aliases.length); // number of entries
+
+		for (int i=0; i < aliases.length; i++)
+		{
+			String alias = aliases[i];
+			int tag = tags[i];
+			byte[] data = entriesData[i];
+
+			dos.writeInt(tag);
+			dos.writeShort(alias.length());
+			dos.write(alias.getBytes("UTF-8"));
+			dos.writeLong(System.currentTimeMillis());
+			dos.write(data);
+		}
+
+		dos.write(md.digest());
+		dos.flush();
+		dos.close();
 	}
 
 	protected Certificate createSelfSignedCertificate(KeyPair keyPair, String dn) throws Exception
@@ -312,6 +344,23 @@ public class PyJksTestCase
 		}
 	}
 
+	protected byte[] encodeTrustedCert(Certificate cert) throws Exception
+	{
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		DataOutputStream dos = new DataOutputStream(bos);
+
+		byte[] encoded = cert.getEncoded();
+		String type = cert.getType();
+		dos.writeShort(type.length());
+		dos.write(type.getBytes("UTF-8"));
+		dos.writeInt(encoded.length);
+		dos.write(encoded);
+		dos.flush();
+		dos.close();
+
+		return bos.toByteArray();
+	}
+
 	protected Cipher getPBEWithMD5AndTripleDESCipher(String password, byte[] salt, int iterationCount) throws Exception
 	{
 		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
@@ -329,4 +378,5 @@ public class PyJksTestCase
 		Cipher c = getPBEWithMD5AndTripleDESCipher(password, salt, iterationCount);
 		return c.doFinal(input);
 	}
+
 }

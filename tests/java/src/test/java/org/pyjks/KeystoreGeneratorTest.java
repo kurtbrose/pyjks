@@ -113,6 +113,24 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 	}
 
 	@Test
+	public void generate_duplicate_aliases() throws Exception
+	{
+		KeyPair keyPair = generateKeyPair("RSA", 1024);
+		Certificate cert1 = createSelfSignedCertificate(keyPair, "CN=duplicate_aliases, O=1");
+		Certificate cert2 = createSelfSignedCertificate(keyPair, "CN=duplicate_aliases, O=2");
+
+		String[] aliases = new String[]{"my_alias", "my_alias"};
+		int[] tags = new int[]{TAG_TRUSTED_CERT, TAG_TRUSTED_CERT};
+		byte[][] entriesData = new byte[][]{
+			encodeTrustedCert(cert1),
+			encodeTrustedCert(cert2)
+		};
+
+		generateManualStore("JKS",   "../keystores/jks/duplicate_aliases.jks",     aliases, tags, entriesData, "12345678");
+		generateManualStore("JCEKS", "../keystores/jceks/duplicate_aliases.jceks", aliases, tags, entriesData, "12345678");
+	}
+
+	@Test
 	public void generate_non_ascii_jks_password() throws Exception
 	{
 		// The JKS keystore protector algorithm says that the password is expected to be ASCII but it doesn't enforce that,
