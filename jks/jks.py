@@ -114,48 +114,52 @@ class KeyStore(object):
         else:
             raise BadKeystoreFormatException('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
 
-        version = b4.unpack_from(data, 4)[0]
-        if version != 2:
-            raise UnsupportedKeystoreFormatException('Unsupported keystore version; only v2 supported, found v'+repr(version))
+        try:
+            version = b4.unpack_from(data, 4)[0]
+            if version != 2:
+                raise UnsupportedKeystoreFormatException('Unsupported keystore version; only v2 supported, found v'+repr(version))
 
-        entries = {}
+            entries = {}
 
-        entry_count = b4.unpack_from(data, 8)[0]
-        pos = 12
-        for i in range(entry_count):
-            tag = b4.unpack_from(data, pos)[0]
-            pos += 4
-            alias, pos = cls._read_utf(data, pos)
-            timestamp = b8.unpack_from(data, pos)[0] # milliseconds since UNIX epoch
-            pos += 8
+            entry_count = b4.unpack_from(data, 8)[0]
+            pos = 12
+            for i in range(entry_count):
+                tag = b4.unpack_from(data, pos)[0]
+                pos += 4
+                alias, pos = cls._read_utf(data, pos)
+                timestamp = b8.unpack_from(data, pos)[0] # milliseconds since UNIX epoch
+                pos += 8
 
-            key_password = key_passwords.get(alias, store_password)
+                key_password = key_passwords.get(alias, store_password)
 
-            if tag == 1:
-                try:
-                    entry, pos = cls._read_private_key(data, pos, store_type, key_password=key_password)
-                except DecryptionFailureException:
-                    raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % alias)
+                if tag == 1:
+                    try:
+                        entry, pos = cls._read_private_key(data, pos, store_type, key_password=key_password)
+                    except DecryptionFailureException:
+                        raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % alias)
 
-            elif tag == 2:
-                entry, pos = cls._read_trusted_cert(data, pos, store_type)
+                elif tag == 2:
+                    entry, pos = cls._read_trusted_cert(data, pos, store_type)
 
-            elif tag == 3:
-                if store_type != "jceks":
-                    raise BadKeystoreFormatException("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
-                try:
-                    entry, pos = cls._read_secret_key(data, pos, store_type, key_password=key_password)
-                except DecryptionFailureException:
-                    raise DecryptionFailureException("Failed to decrypt data for secret key '%s'; bad password?" % alias)
-            else:
-                raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
+                elif tag == 3:
+                    if store_type != "jceks":
+                        raise BadKeystoreFormatException("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
+                    try:
+                        entry, pos = cls._read_secret_key(data, pos, store_type, key_password=key_password)
+                    except DecryptionFailureException:
+                        raise DecryptionFailureException("Failed to decrypt data for secret key '%s'; bad password?" % alias)
+                else:
+                    raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
 
-            entry.alias = alias
-            entry.timestamp = timestamp
+                entry.alias = alias
+                entry.timestamp = timestamp
 
-            if alias in entries:
-                raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
-            entries[alias] = entry
+                if alias in entries:
+                    raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
+                entries[alias] = entry
+
+        except struct.error as e:
+            raise BadKeystoreFormatException(e)
 
         # the keystore integrity check uses the UTF-16BE encoding of the password
         store_password_utf16 = store_password.encode('utf-16be')
