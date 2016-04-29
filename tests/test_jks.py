@@ -28,8 +28,9 @@ class AbstractTest(unittest.TestCase):
         if not isinstance(pk, jks.PrivateKeyEntry):
             self.fail("Private key entry not found: %s" % alias)
 
-        self.assertTrue(isinstance(pk.pkey, bytes))
-        self.assertTrue(isinstance(pk.pkey_pkcs8, bytes))
+        if pk.is_decrypted():
+            self.assertTrue(isinstance(pk.pkey, bytes))
+            self.assertTrue(isinstance(pk.pkey_pkcs8, bytes))
         self.assertTrue(isinstance(pk.cert_chain, list))
         self.assertTrue(all(isinstance(c[1], bytes) for c in pk.cert_chain))
         return pk
@@ -39,7 +40,8 @@ class AbstractTest(unittest.TestCase):
         if not isinstance(sk, jks.SecretKeyEntry):
             self.fail("Secret key entry not found: %s" % alias)
 
-        self.assertTrue(isinstance(sk.key, bytes))
+        if sk.is_decrypted():
+            self.assertTrue(isinstance(sk.key, bytes))
         return sk
 
     def find_cert(self, ks, alias):
@@ -98,14 +100,19 @@ class JksTests(AbstractTest):
 
     def test_custom_entry_passwords(self):
         # failure to provide individual entry passwords should result in decryption failures on the individual keys
-        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jks/custom_entry_passwords.jks", "store_password")
-        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jks/custom_entry_passwords.jks", "store_password", key_passwords={"private": "wrong_password"})
-        store = jks.KeyStore.load("tests/keystores/jks/custom_entry_passwords.jks", "store_password", key_passwords={"private": "private_password"})
+        store = jks.KeyStore.load("tests/keystores/jks/custom_entry_passwords.jks", "store_password")
+        self.assertEqual(store.store_type, "jks")
+        self.assertEqual(len(store.entries), 2)
+        self.assertEqual(len(store.certs), 1)
+        self.assertEqual(len(store.private_keys), 1)
+        self.assertEqual(len(store.secret_keys), 0)
 
         pk = self.find_private_key(store, "private")
         cert = self.find_cert(store, "cert")
 
-        self.assertEqual(store.store_type, "jks")
+        self.assertRaises(jks.DecryptionFailureException, pk.decrypt, "wrong_password")
+        pk.decrypt("private_password")
+
         self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
         self.assertEqual(cert.cert, expected.custom_entry_passwords.certs[0])
 
@@ -153,17 +160,22 @@ class JceTests(AbstractTest):
         self.assertEqual(store.store_type, "jceks")
 
     def test_custom_entry_passwords(self):
-        # failure to provide individual entry passwords should result in decryption failures on the individual keys
-        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jceks/custom_entry_passwords.jceks", "store_password")
-        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jceks/custom_entry_passwords.jceks", "store_password", key_passwords={"private": "wrong_password", "secret_key": "secret_password"})
-        self.assertRaises(jks.KeystoreException, jks.KeyStore.load, "tests/keystores/jceks/custom_entry_passwords.jceks", "store_password", key_passwords={"private": "private_password", "secret_key": "wrong_password"})
-        store = jks.KeyStore.load("tests/keystores/jceks/custom_entry_passwords.jceks", "store_password", key_passwords={"private": "private_password", "secret": "secret_password"})
+        store = jks.KeyStore.load("tests/keystores/jceks/custom_entry_passwords.jceks", "store_password") # shouldn't throw, we're not yet trying to decrypt anything at this point
+        self.assertEqual(store.store_type, "jceks")
+        self.assertEqual(len(store.entries), 3)
+        self.assertEqual(len(store.certs), 1)
+        self.assertEqual(len(store.private_keys), 1)
+        self.assertEqual(len(store.secret_keys), 1)
 
         pk = self.find_private_key(store, "private")
         sk = self.find_secret_key(store, "secret")
         cert = self.find_cert(store, "cert")
 
-        self.assertEqual(store.store_type, "jceks")
+        self.assertRaises(jks.DecryptionFailureException, pk.decrypt, "wrong_password")
+        self.assertRaises(jks.DecryptionFailureException, sk.decrypt, "wrong_password")
+        pk.decrypt("private_password")
+        sk.decrypt("secret_password")
+
         self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
         self.assertEqual(sk.key, b"\x3f\x68\x05\x04\xc6\x6c\xc2\x5a\xae\x65\xd0\xfa\x49\xc5\x26\xec")
         self.assertEqual(sk.algorithm, "AES")
