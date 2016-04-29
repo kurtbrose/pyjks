@@ -15,7 +15,6 @@ Notes on Python2/3 compatibility:
 import struct
 import ctypes
 import hashlib
-import collections
 import javaobj
 from pyasn1.codec.ber import decoder
 from pyasn1_modules import rfc5208
@@ -65,6 +64,11 @@ class TrustedCertEntry(AbstractKeystoreEntry):
         super(TrustedCertEntry, self).__init__(**kwargs)
         self.type = kwargs.get("type")
         self.cert = kwargs.get("cert")
+
+    def is_decrypted(self):
+        return True
+    def decrypt(self, password):
+        return
 
 class PrivateKeyEntry(AbstractKeystoreEntry):
     def __init__(self, **kwargs):
@@ -224,12 +228,35 @@ class KeyStore(object):
         return {a:e for (a,e) in self.entries.items() if isinstance(e, PrivateKeyEntry)}
 
     @classmethod
-    def load(cls, filename, store_password):
+    def load(cls, filename, store_password, try_decrypt_keys=True):
+        """
+        Loads the given keystore file using the supplied password for verifying its integrity, and returns a jks.KeyStore instance.
+
+        Note that entries in the store that represent some form of cryptographic key material are stored in encrypted form, and
+        therefore require decryption before becoming accessible.
+
+        Upon original creation of a key entry in a Java keystore, users are presented with the choice to either use the same password
+        as the store password, or use a custom one. The most common choice is to use the store password for the individual key entries as well.
+
+        For ease of use in this typical scenario, this function will attempt to decrypt each key entry it encounters with the store password:
+         - If the key can be successfully decrypted with the store password, the entry is returned in its decrypted form, and its attributes
+           are immediately accessible.
+         - If the key cannot be decrypted with the store password, the entry is returned in its encrypted form, and requires a manual follow-up
+           decrypt(key_password) call from the user before its individual attributes become accessible.
+
+        Setting try_decrypt_keys to False disables this automatic decryption attempt, and returns all key entries in encrypted form.
+
+        You can query whether a returned entry object has already been decrypted by calling the .is_decrypted() method on it.
+        Attempting to access attributes of an entry that has not yet been decrypted will result in a NotYetDecryptedException.
+        """
         with open(filename, 'rb') as file:
-            return cls.loads(file.read(), store_password)
+            return cls.loads(file.read(), store_password, try_decrypt_keys=try_decrypt_keys)
 
     @classmethod
-    def loads(cls, data, store_password):
+    def loads(cls, data, store_password, try_decrypt_keys=True):
+        """
+        See the documentation on the load() function.
+        """
         store_type = ""
         magic_number = data[:4]
         if magic_number == MAGIC_NUMBER_JKS:
@@ -257,29 +284,23 @@ class KeyStore(object):
 
                 if tag == 1:
                     entry, pos = cls._read_private_key(data, pos, store_type)
-                    try:
-                        entry.decrypt(store_password)
-                    except DecryptionFailureException:
-                        pass # ok, let user call decrypt() manually
-
                 elif tag == 2:
                     entry, pos = cls._read_trusted_cert(data, pos, store_type)
-
                 elif tag == 3:
                     if store_type != "jceks":
                         raise BadKeystoreFormatException("Unexpected entry tag {0} encountered in JKS keystore; only supported in JCEKS keystores".format(tag))
-
                     entry, pos = cls._read_secret_key(data, pos, store_type)
-                    try:
-                        entry.decrypt(store_password)
-                    except DecryptionFailureException:
-                        pass # ok, let user call decrypt() manually
-
                 else:
                     raise BadKeystoreFormatException("Unexpected keystore entry tag %d", tag)
 
                 entry.alias = alias
                 entry.timestamp = timestamp
+
+                if try_decrypt_keys:
+                    try:
+                        entry.decrypt(store_password)
+                    except DecryptionFailureException:
+                        pass # ok, let user call decrypt() manually
 
                 if alias in entries:
                     raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
