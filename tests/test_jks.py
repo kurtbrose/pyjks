@@ -74,19 +74,19 @@ class JksTests(AbstractTest):
         store = jks.KeyStore.load("tests/keystores/jks/RSA1024.jks", "12345678")
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jks")
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
 
     def test_rsa_2048_3certs(self):
         store = jks.KeyStore.load("tests/keystores/jks/RSA2048_3certs.jks", "12345678")
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jks")
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
 
     def test_dsa_2048(self):
         store = jks.KeyStore.load("tests/keystores/jks/DSA2048.jks", "12345678")
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jks")
-        self.check_pkey_and_certs_equal(pk, jks.DSA_OID, expected.DSA2048.private_key, expected.DSA2048.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.DSA_OID, expected.DSA2048.private_key, expected.DSA2048.certs)
 
     def test_certs(self):
         store = jks.KeyStore.load("tests/keystores/jks/3certs.jks", "12345678")
@@ -111,7 +111,7 @@ class JksTests(AbstractTest):
         self.assertTrue(not pk.is_decrypted())
         pk.decrypt("private_password")
         self.assertTrue(pk.is_decrypted())
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
 
         cert = self.find_cert(store, "cert")
         self.assertEqual(cert.cert, expected.custom_entry_passwords.certs[0])
@@ -123,7 +123,7 @@ class JksTests(AbstractTest):
         store = jks.KeyStore.load("tests/keystores/jks/non_ascii_password.jks", u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jks")
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.jks_non_ascii_password.private_key, expected.jks_non_ascii_password.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.jks_non_ascii_password.private_key, expected.jks_non_ascii_password.certs)
 
 class JceTests(AbstractTest):
     def test_empty_store(self):
@@ -135,19 +135,19 @@ class JceTests(AbstractTest):
         store = jks.KeyStore.load("tests/keystores/jceks/RSA1024.jceks", "12345678")
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jceks")
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
 
     def test_rsa_2048_3certs(self):
         store = jks.KeyStore.load("tests/keystores/jceks/RSA2048_3certs.jceks", "12345678")
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jceks")
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
 
     def test_dsa_2048(self):
         store = jks.KeyStore.load("tests/keystores/jceks/DSA2048.jceks", "12345678")
         pk = self.find_private_key(store, "mykey")
         self.assertEqual(store.store_type, "jceks")
-        self.check_pkey_and_certs_equal(pk, jks.DSA_OID, expected.DSA2048.private_key, expected.DSA2048.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.DSA_OID, expected.DSA2048.private_key, expected.DSA2048.certs)
 
     def test_certs(self):
         store = jks.KeyStore.load("tests/keystores/jceks/3certs.jceks", "12345678")
@@ -172,7 +172,7 @@ class JceTests(AbstractTest):
         self.assertTrue(not pk.is_decrypted())
         pk.decrypt("private_password")
         self.assertTrue(pk.is_decrypted())
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
 
         sk = self.find_secret_key(store, "secret")
         self.assertRaises(jks.DecryptionFailureException, sk.decrypt, "wrong_password")
@@ -235,20 +235,20 @@ class JceOnlyTests(AbstractTest):
 
 class MiscTests(AbstractTest):
     def test_strip_pkcs5_padding(self):
-        self.assertEqual(jks.jks._strip_pkcs5_padding(b"\x08\x08\x08\x08\x08\x08\x08\x08"), b"")
-        self.assertEqual(jks.jks._strip_pkcs5_padding(b"\x01\x07\x07\x07\x07\x07\x07\x07"), b"\x01")
-        self.assertEqual(jks.jks._strip_pkcs5_padding(b"\x01\x02\x03\x04\x05\x06\x07\x01"), b"\x01\x02\x03\x04\x05\x06\x07")
+        self.assertEqual(jks.sun_crypto._strip_pkcs5_padding(b"\x08\x08\x08\x08\x08\x08\x08\x08"), b"")
+        self.assertEqual(jks.sun_crypto._strip_pkcs5_padding(b"\x01\x07\x07\x07\x07\x07\x07\x07"), b"\x01")
+        self.assertEqual(jks.sun_crypto._strip_pkcs5_padding(b"\x01\x02\x03\x04\x05\x06\x07\x01"), b"\x01\x02\x03\x04\x05\x06\x07")
 
-        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"")
-        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x01")
-        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x01\x02\x03\x04\x08\x08")
-        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x07\x07\x07\x07\x07\x07\x07")
-        self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x00\x00\x00\x00\x00\x00\x00\x00")
+        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"")
+        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x01")
+        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x01\x02\x03\x04\x08\x08")
+        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x07\x07\x07\x07\x07\x07\x07")
+        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x00\x00\x00\x00\x00\x00\x00\x00")
 
     def test_sun_jce_pbe_decrypt(self):
-        self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\xc4\x20\x59\xac\x54\x03\xc7\xbf", "my_password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 42))
-        self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\xef\x9f\xbd\xc5\x91\x5f\x49\x50", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x05", 42))
-        self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\x72\x8f\xd8\xcc\x21\x41\x25\x80", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x04", 42))
+        self.assertEqual(b"sample", jks.sun_crypto.jce_pbe_decrypt(b"\xc4\x20\x59\xac\x54\x03\xc7\xbf", "my_password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 42))
+        self.assertEqual(b"sample", jks.sun_crypto.jce_pbe_decrypt(b"\xef\x9f\xbd\xc5\x91\x5f\x49\x50", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x05", 42))
+        self.assertEqual(b"sample", jks.sun_crypto.jce_pbe_decrypt(b"\x72\x8f\xd8\xcc\x21\x41\x25\x80", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x04", 42))
 
     def test_filter_attributes(self):
         ks = jks.KeyStore("jks", {})
@@ -299,7 +299,7 @@ class MiscTests(AbstractTest):
 
         store = jks.KeyStore.load("tests/keystores/jceks/RSA1024.jceks", "12345678", try_decrypt_keys=True)
         pk = self.find_private_key(store, "mykey")
-        self.check_pkey_and_certs_equal(pk, jks.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
         dummy = pk.cert_chain
 
 if __name__ == "__main__":
