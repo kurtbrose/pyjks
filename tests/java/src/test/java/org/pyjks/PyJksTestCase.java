@@ -9,6 +9,7 @@ import java.io.UnsupportedEncodingException;
 import java.math.BigInteger;
 import java.security.DigestOutputStream;
 import java.security.KeyPair;
+import java.security.KeyPairGenerator;
 import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
@@ -20,7 +21,13 @@ import java.security.cert.X509Certificate;
 import java.security.interfaces.DSAPrivateKey;
 import java.security.interfaces.RSAPrivateKey;
 import java.util.Date;
+import java.util.HashMap;
+import java.util.Map;
+import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.PBEParameterSpec;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -36,7 +43,7 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
  */
 public class PyJksTestCase
 {
-	public String toPythonString(byte[] data, int bytesPerLine, String leftPadding)
+	public static String toPythonString(byte[] data, int bytesPerLine, String leftPadding)
 	{
 		char[] hexChars = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e','f'};
 		leftPadding = (leftPadding == null ? "" : leftPadding);
@@ -59,7 +66,7 @@ public class PyJksTestCase
 		return sb.toString();
 	}
 
-	public String toPythonString(byte[] data)
+	public static String toPythonString(byte[] data)
 	{
 		return toPythonString(data, 32, "");
 	}
@@ -100,6 +107,53 @@ public class PyJksTestCase
 		FileUtils.writeStringToFile(new File(filename), sb.toString());
 	}
 
+	protected KeyPair generateKeyPair(String algorithm, int size) throws Exception
+	{
+		KeyPairGenerator keyPairGenerator = KeyPairGenerator.getInstance(algorithm);
+		keyPairGenerator.initialize(size);
+		return keyPairGenerator.generateKeyPair();
+	}
+
+	protected void generateKeyStore(String storeType, String filepath, Map<String, KeyStore.Entry> entriesByAlias, Map<String, String> entryPasswordsByAlias, String storePassword) throws Exception
+	{
+		// avoid the need for some null checks in the remainder of the code below
+		if (entriesByAlias == null)
+			entriesByAlias = new HashMap<String, KeyStore.Entry>();
+		if (entryPasswordsByAlias == null)
+			entryPasswordsByAlias = new HashMap<String, String>();
+
+		KeyStore ks = KeyStore.getInstance(storeType);
+		char[] storePasswordChars = storePassword.toCharArray();
+		ks.load(null, storePasswordChars);
+
+		for (String alias : entriesByAlias.keySet())
+		{
+			KeyStore.Entry entry = entriesByAlias.get(alias);
+			if (entry == null)
+				continue;
+
+			// trusted certificates don't need password protection (and will complain if you provide it)
+			KeyStore.PasswordProtection passwordProtection = null;
+			if (!(entry instanceof KeyStore.TrustedCertificateEntry))
+			{
+				String entryPassword = entryPasswordsByAlias.get(alias);
+				if (entryPassword == null)
+					entryPassword = storePassword;
+
+				// Note: there's no point specifying a protection algorithm/parameters to the KeyStore.PasswordProtection instance,
+				// the default KeyStoreSpi.setEntry implementation uses it only to grab the password and nothing else.
+				// Only the PKCS12 keystore SPI appears to honor custom protection algorithm/parameters.
+				passwordProtection = new KeyStore.PasswordProtection(entryPassword.toCharArray());
+			}
+
+			ks.setEntry(alias, entry, passwordProtection);
+		}
+
+		FileOutputStream fos = new FileOutputStream(filepath);
+		ks.store(fos, storePasswordChars);
+		fos.close();
+	}
+
 	protected void generatePrivateKeyStore(String storeType, String filepath, PrivateKey privateKey, Certificate[] chain) throws Exception
 	{
 		generatePrivateKeyStore(storeType, filepath, privateKey, chain, "12345678", "12345678", "mykey");
@@ -107,16 +161,16 @@ public class PyJksTestCase
 
 	protected void generatePrivateKeyStore(String storeType, String filepath, PrivateKey privateKey, Certificate[] chain, String storePassword, String keyPassword, String alias) throws Exception
 	{
-		KeyStore ks = KeyStore.getInstance(storeType);
-		char[] ksPasswordChars = storePassword.toCharArray();
-		ks.load(null, ksPasswordChars);
+		Map<String, KeyStore.Entry> entriesByAlias = new HashMap<String, KeyStore.Entry>();
+		Map<String, String> passwordsByAlias = new HashMap<String, String>();
 
 		if (privateKey != null)
-			ks.setEntry(alias, new KeyStore.PrivateKeyEntry(privateKey, chain), new KeyStore.PasswordProtection(keyPassword.toCharArray()));
+		{
+			entriesByAlias.put(alias, new KeyStore.PrivateKeyEntry(privateKey, chain));
+			passwordsByAlias.put(alias, keyPassword);
+		}
 
-		FileOutputStream fos = new FileOutputStream(filepath);
-		ks.store(fos, ksPasswordChars);
-		fos.close();
+		generateKeyStore(storeType, filepath, entriesByAlias, passwordsByAlias, storePassword);
 	}
 
 	protected void generateCertKeyStore(String storeType, String filepath, Certificate cert) throws Exception
@@ -131,19 +185,34 @@ public class PyJksTestCase
 
 	protected void generateCertsKeyStore(String storeType, String filepath, Certificate[] certs, String[] aliases, String storePassword) throws Exception
 	{
-		KeyStore ks = KeyStore.getInstance(storeType);
-		char[] ksPasswordChars = storePassword.toCharArray();
-		ks.load(null, ksPasswordChars);
+		Map<String, KeyStore.Entry> entriesByAlias = new HashMap<String, KeyStore.Entry>();
 
-		if (certs != null)
+		if (certs != null && aliases != null)
 		{
-			for (int i=0; i<certs.length; i++)
-				ks.setEntry(aliases[i], new KeyStore.TrustedCertificateEntry(certs[i]), null);
+			for (int i=0; i < certs.length; i++)
+				entriesByAlias.put(aliases[i], new KeyStore.TrustedCertificateEntry(certs[i]));
 		}
 
-		FileOutputStream fos = new FileOutputStream(filepath);
-		ks.store(fos, ksPasswordChars);
-		fos.close();
+		generateKeyStore(storeType, filepath, entriesByAlias, null, storePassword);
+	}
+
+	protected void generateSecretKeyStore(String filepath, SecretKey secretKey) throws Exception
+	{
+		generateSecretKeyStore(filepath, secretKey, "12345678", "12345678", "mykey");
+	}
+
+	protected void generateSecretKeyStore(String filepath, SecretKey secretKey, String storePassword, String keyPassword, String alias) throws Exception
+	{
+		Map<String, KeyStore.Entry> entriesByAlias = new HashMap<String, KeyStore.Entry>();
+		Map<String, String> passwordsByAlias = new HashMap<String, String>();
+
+		if (secretKey != null)
+		{
+			entriesByAlias.put(alias, new KeyStore.SecretKeyEntry(secretKey));
+			passwordsByAlias.put(alias, keyPassword);
+		}
+
+		generateKeyStore("JCEKS", filepath, entriesByAlias, passwordsByAlias, storePassword);
 	}
 
 	protected MessageDigest getJceStoreDigest(String keystorePassword)
@@ -175,28 +244,6 @@ public class PyJksTestCase
 			throw new RuntimeException(e);
 		}
 		return md;
-	}
-
-	protected void generateSecretKeyStore(String filepath, SecretKey secretKey) throws Exception
-	{
-		generateSecretKeyStore(filepath, secretKey, "12345678", "12345678", "mykey");
-	}
-
-	protected void generateSecretKeyStore(String filepath, SecretKey secretKey, String keystorePassword, String keyPassword, String alias) throws Exception
-	{
-		KeyStore ks = KeyStore.getInstance("JCEKS");
-		char[] ksPasswordChars = keystorePassword.toCharArray();
-		ks.load(null, ksPasswordChars);
-
-		// Note: there's no point specifying a protection algorithm/parameters to the KeyStore.PasswordProtection instance,
-		// the default KeyStoreSpi.setEntry implementation uses it only to grab the password and nothing else.
-		// Only the PKCS12 keystore SPI appears to honor custom protection algorithm/parameters.
-		if (secretKey != null)
-			ks.setEntry(alias, new KeyStore.SecretKeyEntry(secretKey), new KeyStore.PasswordProtection(keyPassword.toCharArray()));
-
-		FileOutputStream fos = new FileOutputStream(filepath);
-		ks.store(fos, ksPasswordChars);
-		fos.close();
 	}
 
 	/**
@@ -263,5 +310,23 @@ public class PyJksTestCase
 		{
 			Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
 		}
+	}
+
+	protected Cipher getPBEWithMD5AndTripleDESCipher(String password, byte[] salt, int iterationCount) throws Exception
+	{
+		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, iterationCount);
+		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
+		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+
+		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
+		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+		return cipher;
+	}
+
+	protected byte[] encryptPBEWithMD5AndTripleDES(byte[] input, String password, byte[] salt, int iterationCount) throws Exception
+	{
+		Cipher c = getPBEWithMD5AndTripleDESCipher(password, salt, iterationCount);
+		return c.doFinal(input);
 	}
 }

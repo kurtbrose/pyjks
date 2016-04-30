@@ -312,12 +312,14 @@ def _sun_jce_pbe_decrypt(data, password, salt, iteration_count):
     Decrypts Sun's custom PBEWithMD5AndTripleDES password-based encryption scheme.
     It is based on password-based encryption as defined by the PKCS #5 standard, except that it uses triple DES instead of DES.
     Here's how this algorithm works:
-      1. Create random salt and split it in two halves. If the two halves are identical, invert one of them.
+      1. Create random salt and split it in two halves. If the two halves are identical, invert(*) the first half.
       2. Concatenate password with each of the halves.
       3. Digest each concatenation with c iterations, where c is the iterationCount. Concatenate the output from each digest round with the password,
          and use the result as the input to the next digest operation. The digest algorithm is MD5.
       4. After c iterations, use the 2 resulting digests as follows: The 16 bytes of the first digest and the 1st 8 bytes of the 2nd digest
          form the triple DES key, and the last 8 bytes of the 2nd digest form the IV.
+
+    (*) Not actually an inversion operation due to an implementation bug in com.sun.crypto.provider.PBECipherCore. See _sun_jce_invert_salt_half for details.
     See http://grepcode.com/file/repository.grepcode.com/java/root/jdk/openjdk/6-b27/com/sun/crypto/provider/PBECipherCore.java#PBECipherCore.deriveCipherKey%28java.security.Key%29
     """
     key, iv = _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count)
@@ -343,7 +345,7 @@ def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
 
     salt_halves = [salt[0:4], salt[4:8]]
     if salt_halves[0] == salt_halves[1]:
-        salt_halves[0] = salt_halves[0][::-1] # reversed
+        salt_halves[0] = _sun_jce_invert_salt_half(salt_halves[0])
 
     derived = b""
     for i in range(2):
@@ -355,6 +357,26 @@ def _sun_jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     key = derived[:-8] # = 24 bytes
     iv = derived[-8:]
     return key, iv
+
+def _sun_jce_invert_salt_half(salt_half):
+    """
+    JCE's proprietary PBEWithMD5AndTripleDES algorithm as described in the OpenJDK sources calls for inverting the first salt half if the two halves are equal.
+    However, there appears to be a bug in the original JCE implementation of com.sun.crypto.provider.PBECipherCore causing it to perform a different operation:
+
+      for (i=0; i<2; i++) {
+          byte tmp = salt[i];
+          salt[i] = salt[3-i];
+          salt[3-1] = tmp;     // <-- typo '1' instead of 'i'
+      }
+
+    The result is transforming [a,b,c,d] into [d,a,b,d] instead of [d,c,b,a] (verified going back to the original JCE 1.2.2 release for JDK 1.2).
+    See source (or bytecode) of com.sun.crypto.provider.PBECipherCore (JRE <= 7) and com.sun.crypto.provider.PBES1Core (JRE 8+):
+    """
+    salt = bytearray(salt_half)
+    salt[2] = salt[1]
+    salt[1] = salt[0]
+    salt[0] = salt[3]
+    return bytes(salt)
 
 def _strip_pkcs5_padding(m):
     """
