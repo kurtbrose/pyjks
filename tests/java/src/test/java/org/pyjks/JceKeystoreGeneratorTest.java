@@ -86,12 +86,7 @@ public class JceKeystoreGeneratorTest extends PyJksTestCase
 		String password = "12345678";
 
 		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
-		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(new byte[]{83, 79, 95, 83, 65, 76, 84, 89}, 42);
-		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
-		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
-
-		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
-		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+		Cipher cipher = getPBEWithMD5AndTripleDESCipher(password, new byte[]{83, 79, 95, 83, 65, 76, 84, 89}, 42);
 
 		SealedObject so = new SealedObject(new DummyObject(), cipher);
 		generateManualSealedObjectStore(filename, password, alias, so);

@@ -193,5 +193,10 @@ class MiscTests(AbstractTest):
         self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x07\x07\x07\x07\x07\x07\x07")
         self.assertRaises(jks.BadPaddingException, jks.jks._strip_pkcs5_padding, b"\x00\x00\x00\x00\x00\x00\x00\x00")
 
+    def test_sun_jce_pbe_decrypt(self):
+        self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\xc4\x20\x59\xac\x54\x03\xc7\xbf", "my_password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 42))
+        self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\xef\x9f\xbd\xc5\x91\x5f\x49\x50", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x05", 42))
+        self.assertEqual(b"sample", jks.jks._sun_jce_pbe_decrypt(b"\x72\x8f\xd8\xcc\x21\x41\x25\x80", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x04", 42))
+
 if __name__ == "__main__":
     unittest.main()

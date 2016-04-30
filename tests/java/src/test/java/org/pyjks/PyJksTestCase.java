@@ -23,7 +23,11 @@ import java.security.interfaces.RSAPrivateKey;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
+import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
+import javax.crypto.SecretKeyFactory;
+import javax.crypto.spec.PBEKeySpec;
+import javax.crypto.spec.PBEParameterSpec;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.bouncycastle.asn1.x500.X500Name;
@@ -306,5 +310,23 @@ public class PyJksTestCase
 		{
 			Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
 		}
+	}
+
+	protected Cipher getPBEWithMD5AndTripleDESCipher(String password, byte[] salt, int iterationCount) throws Exception
+	{
+		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, iterationCount);
+		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
+		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+
+		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
+		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+		return cipher;
+	}
+
+	protected byte[] encryptPBEWithMD5AndTripleDES(byte[] input, String password, byte[] salt, int iterationCount) throws Exception
+	{
+		Cipher c = getPBEWithMD5AndTripleDESCipher(password, salt, iterationCount);
+		return c.doFinal(input);
 	}
 }
