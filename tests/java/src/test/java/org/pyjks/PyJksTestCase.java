@@ -368,21 +368,21 @@ public class PyJksTestCase
 		return bos.toByteArray();
 	}
 
-	protected Cipher getPBEWithMD5AndTripleDESCipher(String password, byte[] salt, int iterationCount) throws Exception
+	protected Cipher makePBECipher(String algorithm, int mode, String password, byte[] salt, int iterationCount) throws Exception
 	{
-		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
-		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, iterationCount);
 		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
-		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, iterationCount);
+		SecretKey pbeKey = SecretKeyFactory.getInstance(algorithm).generateSecret(pbeKeySpec);
 
-		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
-		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+		Cipher cipher = Cipher.getInstance(algorithm);
+		cipher.init(mode, pbeKey, pbeParamSpec);
 		return cipher;
+
 	}
 
 	protected byte[] encryptPBEWithMD5AndTripleDES(byte[] input, String password, byte[] salt, int iterationCount) throws Exception
 	{
-		Cipher c = getPBEWithMD5AndTripleDESCipher(password, salt, iterationCount);
+		Cipher c = makePBECipher("PBEWithMD5AndTripleDES", Cipher.ENCRYPT_MODE, password, salt, iterationCount);
 		return c.doFinal(input);
 	}
 
