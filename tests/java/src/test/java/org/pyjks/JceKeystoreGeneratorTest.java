@@ -1,6 +1,5 @@
 package org.pyjks;
 
-import java.io.File;
 import javax.crypto.Cipher;
 import javax.crypto.SealedObject;
 import javax.crypto.SecretKey;
@@ -11,9 +10,7 @@ import javax.crypto.spec.PBEKeySpec;
 import javax.crypto.spec.PBEParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
-import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.reflect.FieldUtils;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -21,12 +18,6 @@ import org.junit.Test;
  */
 public class JceKeystoreGeneratorTest extends PyJksTestCase
 {
-	@BeforeClass
-	public static void setUpClass() throws Exception
-	{
-		FileUtils.forceMkdir(new File("../keystores/jceks"));
-	}
-
 	@Test
 	public void jceks_DES() throws Exception
 	{

@@ -1,6 +1,7 @@
 package org.pyjks;
 
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.DataOutputStream;
 import java.io.File;
 import java.io.FileOutputStream;
@@ -14,6 +15,7 @@ import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.Certificate;
@@ -43,6 +45,10 @@ import org.bouncycastle.operator.jcajce.JcaContentSignerBuilder;
  */
 public class PyJksTestCase
 {
+	public static int TAG_PRIVATE_KEY = 1;
+	public static int TAG_TRUSTED_CERT = 2;
+	public static int TAG_SECRET_KEY = 3;
+
 	public static String toPythonString(byte[] data, int bytesPerLine, String leftPadding)
 	{
 		char[] hexChars = new char[]{'0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e','f'};
@@ -104,6 +110,7 @@ public class PyJksTestCase
 		}
 		sb.append("]");
 
+		// FileUtils.writeStringToFile takes care of creating any intermediate directories, no need to do that manually
 		FileUtils.writeStringToFile(new File(filename), sb.toString());
 	}
 
@@ -149,7 +156,8 @@ public class PyJksTestCase
 			ks.setEntry(alias, entry, passwordProtection);
 		}
 
-		FileOutputStream fos = new FileOutputStream(filepath);
+		// use FileUtils.openOutputStream so we don't have to manually create any intermediate directories in filepath
+		FileOutputStream fos = FileUtils.openOutputStream(new File(filepath));
 		ks.store(fos, storePasswordChars);
 		fos.close();
 	}
@@ -260,7 +268,7 @@ public class PyJksTestCase
 		dos.writeInt(0xCECECECE); // JCE magic bytes
 		dos.writeInt(2); // keystore version
 		dos.writeInt(1); // number of entries
-		dos.writeInt(3); // secret key tag
+		dos.writeInt(TAG_SECRET_KEY);
 		dos.writeShort(alias.length());
 		dos.write(alias.getBytes("UTF-8"));
 		dos.writeLong(System.currentTimeMillis());
@@ -274,11 +282,41 @@ public class PyJksTestCase
 		oos.close();
 	}
 
+	protected void generateManualStore(String storeType, String filename, String[] aliases, int[] tags, byte[][] entriesData, String storePassword) throws Exception
+	{
+		MessageDigest md = getJceStoreDigest(storePassword);
+
+		DataOutputStream dos = new DataOutputStream(new DigestOutputStream(new BufferedOutputStream(new FileOutputStream(filename)), md));
+		dos.writeInt("JCEKS".equals(storeType) ? 0xCECECECE : 0xFEEDFEED);
+		dos.writeInt(2); // keystore version
+		dos.writeInt(aliases.length); // number of entries
+
+		for (int i=0; i < aliases.length; i++)
+		{
+			String alias = aliases[i];
+			int tag = tags[i];
+			byte[] data = entriesData[i];
+
+			dos.writeInt(tag);
+			dos.writeShort(alias.length());
+			dos.write(alias.getBytes("UTF-8"));
+			dos.writeLong(System.currentTimeMillis());
+			dos.write(data);
+		}
+
+		dos.write(md.digest());
+		dos.flush();
+		dos.close();
+	}
+
 	protected Certificate createSelfSignedCertificate(KeyPair keyPair, String dn) throws Exception
 	{
 		// Note: producing a self-signed certificate can be done through the JRE implementation as well,
 		// but not in any portable or documented way (see sun.security.tools.keytool.CertAndKeyGen)
-		Security.addProvider(new BouncyCastleProvider());
+		Provider bcProv = Security.getProvider("BC");
+		if (bcProv == null)
+			Security.addProvider(new BouncyCastleProvider());
+
 		try
 		{
 			PublicKey publicKey = keyPair.getPublic();
@@ -308,8 +346,26 @@ public class PyJksTestCase
 		}
 		finally
 		{
-			Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
+			if (bcProv == null)
+				Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
 		}
+	}
+
+	protected byte[] encodeTrustedCert(Certificate cert) throws Exception
+	{
+		ByteArrayOutputStream bos = new ByteArrayOutputStream();
+		DataOutputStream dos = new DataOutputStream(bos);
+
+		byte[] encoded = cert.getEncoded();
+		String type = cert.getType();
+		dos.writeShort(type.length());
+		dos.write(type.getBytes("UTF-8"));
+		dos.writeInt(encoded.length);
+		dos.write(encoded);
+		dos.flush();
+		dos.close();
+
+		return bos.toByteArray();
 	}
 
 	protected Cipher getPBEWithMD5AndTripleDESCipher(String password, byte[] salt, int iterationCount) throws Exception
@@ -329,4 +385,5 @@ public class PyJksTestCase
 		Cipher c = getPBEWithMD5AndTripleDESCipher(password, salt, iterationCount);
 		return c.doFinal(input);
 	}
+
 }

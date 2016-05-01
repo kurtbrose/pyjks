@@ -1,12 +1,14 @@
 package org.pyjks;
 
-import java.io.File;
 import java.security.KeyPair;
-import java.security.KeyPairGenerator;
+import java.security.KeyStore;
 import java.security.cert.Certificate;
+import java.util.HashMap;
+import java.util.Map;
+import javax.crypto.SecretKey;
+import javax.crypto.spec.SecretKeySpec;
+import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.binary.StringUtils;
-import org.apache.commons.io.FileUtils;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -14,14 +16,6 @@ import org.junit.Test;
  */
 public class KeystoreGeneratorTest extends PyJksTestCase
 {
-	@BeforeClass
-	public static void setUpClass() throws Exception
-	{
-		FileUtils.forceMkdir(new File("../keystores/jks"));
-		FileUtils.forceMkdir(new File("../keystores/jceks"));
-		FileUtils.forceMkdir(new File("../expected"));
-	}
-
 	@Test
 	public void generate_empty() throws Exception
 	{
@@ -75,6 +69,54 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 		generatePrivateKeyStore("JCEKS", "../keystores/jceks/DSA2048.jceks", keyPair.getPrivate(), certs);
 
 		writePythonDataFile("../expected/DSA2048.py", keyPair.getPrivate(), certs);
+	}
+
+	@Test
+	public void generate_custom_entry_passwords() throws Exception
+	{
+		// create JKS and JCEKS keystores containing entries of each type, each with a different entry password
+		Map<String, KeyStore.Entry> entriesByAlias = new HashMap<String, KeyStore.Entry>();
+		Map<String, String> passwordsByAlias = new HashMap<String, String>();
+
+		// produce some key material
+		KeyPair keyPair = generateKeyPair("RSA", 2048);
+		Certificate cert = createSelfSignedCertificate(keyPair, "CN=custom_entry_passwords");
+		Certificate[] certs = new Certificate[]{ cert };
+
+		SecretKey secretKey = new SecretKeySpec(Hex.decodeHex("3f680504c66cc25aae65d0fa49c526ec".toCharArray()), "AES");
+
+		// write JKS keystore
+		entriesByAlias.put("cert", new KeyStore.TrustedCertificateEntry(cert));
+		entriesByAlias.put("private", new KeyStore.PrivateKeyEntry(keyPair.getPrivate(), certs));
+		passwordsByAlias.put("private", "private_password");
+
+		generateKeyStore("JKS", "../keystores/jks/custom_entry_passwords.jks", entriesByAlias, passwordsByAlias, "store_password");
+
+		// add secret key entries and write JCEKS keystore
+		entriesByAlias.put("secret", new KeyStore.SecretKeyEntry(secretKey));
+		passwordsByAlias.put("secret", "secret_password");
+
+		generateKeyStore("JCEKS", "../keystores/jceks/custom_entry_passwords.jceks", entriesByAlias, passwordsByAlias, "store_password");
+
+		writePythonDataFile("../expected/custom_entry_passwords.py", keyPair.getPrivate(), certs);
+	}
+
+	@Test
+	public void generate_duplicate_aliases() throws Exception
+	{
+		KeyPair keyPair = generateKeyPair("RSA", 1024);
+		Certificate cert1 = createSelfSignedCertificate(keyPair, "CN=duplicate_aliases, O=1");
+		Certificate cert2 = createSelfSignedCertificate(keyPair, "CN=duplicate_aliases, O=2");
+
+		String[] aliases = new String[]{"my_alias", "my_alias"};
+		int[] tags = new int[]{TAG_TRUSTED_CERT, TAG_TRUSTED_CERT};
+		byte[][] entriesData = new byte[][]{
+			encodeTrustedCert(cert1),
+			encodeTrustedCert(cert2)
+		};
+
+		generateManualStore("JKS",   "../keystores/jks/duplicate_aliases.jks",     aliases, tags, entriesData, "12345678");
+		generateManualStore("JCEKS", "../keystores/jceks/duplicate_aliases.jceks", aliases, tags, entriesData, "12345678");
 	}
 
 	@Test
