@@ -224,15 +224,15 @@ class JceOnlyTests(AbstractTest):
 
 class MiscTests(AbstractTest):
     def test_strip_pkcs5_padding(self):
-        self.assertEqual(jks.sun_crypto._strip_pkcs5_padding(b"\x08\x08\x08\x08\x08\x08\x08\x08"), b"")
-        self.assertEqual(jks.sun_crypto._strip_pkcs5_padding(b"\x01\x07\x07\x07\x07\x07\x07\x07"), b"\x01")
-        self.assertEqual(jks.sun_crypto._strip_pkcs5_padding(b"\x01\x02\x03\x04\x05\x06\x07\x01"), b"\x01\x02\x03\x04\x05\x06\x07")
+        self.assertEqual(jks.util.strip_pkcs5_padding(b"\x08\x08\x08\x08\x08\x08\x08\x08"), b"")
+        self.assertEqual(jks.util.strip_pkcs5_padding(b"\x01\x07\x07\x07\x07\x07\x07\x07"), b"\x01")
+        self.assertEqual(jks.util.strip_pkcs5_padding(b"\x01\x02\x03\x04\x05\x06\x07\x01"), b"\x01\x02\x03\x04\x05\x06\x07")
 
-        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"")
-        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x01")
-        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x01\x02\x03\x04\x08\x08")
-        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x07\x07\x07\x07\x07\x07\x07")
-        self.assertRaises(jks.sun_crypto.BadPaddingException, jks.sun_crypto._strip_pkcs5_padding, b"\x00\x00\x00\x00\x00\x00\x00\x00")
+        self.assertRaises(jks.util.BadPaddingException, jks.util.strip_pkcs5_padding, b"")
+        self.assertRaises(jks.util.BadPaddingException, jks.util.strip_pkcs5_padding, b"\x01")
+        self.assertRaises(jks.util.BadPaddingException, jks.util.strip_pkcs5_padding, b"\x01\x02\x03\x04\x08\x08")
+        self.assertRaises(jks.util.BadPaddingException, jks.util.strip_pkcs5_padding, b"\x07\x07\x07\x07\x07\x07\x07")
+        self.assertRaises(jks.util.BadPaddingException, jks.util.strip_pkcs5_padding, b"\x00\x00\x00\x00\x00\x00\x00\x00")
 
     def test_sun_jce_pbe_decrypt(self):
         self.assertEqual(b"sample", jks.sun_crypto.jce_pbe_decrypt(b"\xc4\x20\x59\xac\x54\x03\xc7\xbf", "my_password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 42))

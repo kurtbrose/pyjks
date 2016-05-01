@@ -1,12 +1,9 @@
 # vim: set et ai ts=4 sts=4 sw=4:
 import hashlib
-from .util import KeystoreException
+from .util import *
 
 SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
 SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
-
-class BadPaddingException(KeystoreException): pass
-class BadHashCheckException(KeystoreException): pass
 
 def jks_pkey_decrypt(data, password_str):
     """
@@ -56,7 +53,7 @@ def jce_pbe_decrypt(data, password, salt, iteration_count):
     des3 = DES3.new(key, DES3.MODE_CBC, IV=iv)
     padded = des3.decrypt(data)
 
-    result = _strip_pkcs5_padding(padded)
+    result = strip_pkcs5_padding(padded)
     return result
 
 def _jce_pbe_derive_key_and_iv(password, salt, iteration_count):
@@ -106,19 +103,3 @@ def _jce_invert_salt_half(salt_half):
     salt[0] = salt[3]
     return bytes(salt)
 
-def _strip_pkcs5_padding(m):
-    """
-    Drop PKCS5 padding:  8-(||M|| mod 8) octets each with value 8-(||M|| mod 8)
-
-    Note: ideally we would use pycrypto for this, but it doesn't provide padding functionality and the project is virtually dead at this point.
-    """
-    if len(m) < 8 or len(m) % 8 != 0:
-        raise BadPaddingException("Unable to strip PKCS5 padding: invalid message length")
-
-    m = bytearray(m) # py2/3 compatibility: always returns individual indexed elements as ints
-    last_byte = m[-1]
-    # the <last_byte> bytes of m must all have value <last_byte>, otherwise something's wrong
-    if (last_byte <= 0 or last_byte > 8) or (m[-last_byte:] != bytearray([last_byte])*last_byte):
-        raise BadPaddingException("Unable to strip PKCS5 padding: invalid padding found")
-
-    return bytes(m[:-last_byte]) # back to 'str'/'bytes'
