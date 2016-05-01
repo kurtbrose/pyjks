@@ -1,6 +1,5 @@
 package org.pyjks;
 
-import java.io.File;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.cert.Certificate;
@@ -10,8 +9,6 @@ import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.apache.commons.codec.binary.Hex;
 import org.apache.commons.codec.binary.StringUtils;
-import org.apache.commons.io.FileUtils;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 /**
@@ -19,14 +16,6 @@ import org.junit.Test;
  */
 public class KeystoreGeneratorTest extends PyJksTestCase
 {
-	@BeforeClass
-	public static void setUpClass() throws Exception
-	{
-		FileUtils.forceMkdir(new File("../keystores/jks"));
-		FileUtils.forceMkdir(new File("../keystores/jceks"));
-		FileUtils.forceMkdir(new File("../expected"));
-	}
-
 	@Test
 	public void generate_empty() throws Exception
 	{

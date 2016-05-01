@@ -109,6 +109,7 @@ public class PyJksTestCase
 		}
 		sb.append("]");
 
+		// FileUtils.writeStringToFile takes care of creating any intermediate directories, no need to do that manually
 		FileUtils.writeStringToFile(new File(filename), sb.toString());
 	}
 
@@ -154,7 +155,8 @@ public class PyJksTestCase
 			ks.setEntry(alias, entry, passwordProtection);
 		}
 
-		FileOutputStream fos = new FileOutputStream(filepath);
+		// use FileUtils.openOutputStream so we don't have to manually create any intermediate directories in filepath
+		FileOutputStream fos = FileUtils.openOutputStream(new File(filepath));
 		ks.store(fos, storePasswordChars);
 		fos.close();
 	}
