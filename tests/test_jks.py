@@ -9,18 +9,7 @@ from __future__ import print_function
 import os, sys
 import jks
 import unittest
-import subprocess
-from pprint import pprint
 from . import expected
-
-class cd:
-    def __init__(self, newdir):
-        self.newdir = newdir
-    def __enter__(self):
-        self.olddir = os.getcwd()
-        os.chdir(self.newdir)
-    def __exit__(self, etype, value, trace):
-        os.chdir(self.olddir)
 
 class AbstractTest(unittest.TestCase):
     def find_private_key(self, ks, alias):
