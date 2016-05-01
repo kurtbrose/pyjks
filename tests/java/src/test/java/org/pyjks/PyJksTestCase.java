@@ -15,6 +15,7 @@ import java.security.KeyStore;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.security.PrivateKey;
+import java.security.Provider;
 import java.security.PublicKey;
 import java.security.Security;
 import java.security.cert.Certificate;
@@ -312,7 +313,10 @@ public class PyJksTestCase
 	{
 		// Note: producing a self-signed certificate can be done through the JRE implementation as well,
 		// but not in any portable or documented way (see sun.security.tools.keytool.CertAndKeyGen)
-		Security.addProvider(new BouncyCastleProvider());
+		Provider bcProv = Security.getProvider("BC");
+		if (bcProv == null)
+			Security.addProvider(new BouncyCastleProvider());
+
 		try
 		{
 			PublicKey publicKey = keyPair.getPublic();
@@ -342,7 +346,8 @@ public class PyJksTestCase
 		}
 		finally
 		{
-			Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
+			if (bcProv == null)
+				Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
 		}
 	}
 
