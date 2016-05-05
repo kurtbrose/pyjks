@@ -27,6 +27,9 @@ try:
 except ImportError:
     from io import BytesIO # python3
 
+__version_info__ = (0,4,0)
+__version__ = ".".join(str(x) for x in __version_info__)
+
 b8 = struct.Struct('>Q')
 b4 = struct.Struct('>L')
 b2 = struct.Struct('>H')
