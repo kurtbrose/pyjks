@@ -223,6 +223,23 @@ class JceOnlyTests(AbstractTest):
             jks.KeyStore.load("tests/keystores/jceks/unknown_sealed_object_sealAlg.jceks", "12345678"))
 
 class MiscTests(AbstractTest):
+    def test_bitstring_to_bytes(self):
+        def bs2b(t, _str):
+            bits_tuple = tuple(map(int, _str.replace(" ", "")))
+            result = jks.util.bitstring_to_bytes(bits_tuple)
+            t.assertTrue(isinstance(result, bytes))
+            return result
+
+        self.assertEqual(bs2b(self, ""), b"")
+
+        self.assertEqual(bs2b(self, "        0"), b"\x00")
+        self.assertEqual(bs2b(self, "        1"), b"\x01")
+        self.assertEqual(bs2b(self, "0110 1010"), b"\x6a")
+        self.assertEqual(bs2b(self, "1111 1111"), b"\xff")
+
+        self.assertEqual(bs2b(self, "   0 1111 1111"), b"\x00\xff")
+        self.assertEqual(bs2b(self, "   1 1111 1111"), b"\x01\xff")
+
     def test_strip_pkcs5_padding(self):
         self.assertEqual(jks.util.strip_pkcs5_padding(b"\x08\x08\x08\x08\x08\x08\x08\x08"), b"")
         self.assertEqual(jks.util.strip_pkcs5_padding(b"\x01\x07\x07\x07\x07\x07\x07\x07"), b"\x01")

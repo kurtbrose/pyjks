@@ -12,6 +12,7 @@ Notes on Python2/3 compatibility:
     'int' in Python3. You can't do 'int' operations on a 'str' and vice-versa, so we need some form of common data type.
     We use bytearray() for this purpose; in both Python2 and Python3, this will return individual elements as an 'int'.
 """
+from __future__ import print_function
 import struct
 import ctypes
 import hashlib
@@ -20,7 +21,7 @@ from pyasn1.codec.ber import decoder
 from pyasn1_modules import rfc5208
 from . import rfc2898
 from . import sun_crypto
-from .util import KeystoreException
+from .util import *
 
 try:
     from StringIO import StringIO as BytesIO # python 2
@@ -30,31 +31,9 @@ except ImportError:
 __version_info__ = (0,4,0)
 __version__ = ".".join(str(x) for x in __version_info__)
 
-b8 = struct.Struct('>Q')
-b4 = struct.Struct('>L')
-b2 = struct.Struct('>H')
-b1 = struct.Struct('B')
-
 MAGIC_NUMBER_JKS = b4.pack(0xFEEDFEED)
 MAGIC_NUMBER_JCEKS = b4.pack(0xCECECECE)
 SIGNATURE_WHITENING = b"Mighty Aphrodite"
-
-class KeystoreSignatureException(KeystoreException): pass
-class DuplicateAliasException(KeystoreException): pass
-class NotYetDecryptedException(KeystoreException): pass
-class BadKeystoreFormatException(KeystoreException): pass
-class DecryptionFailureException(KeystoreException): pass
-class UnsupportedKeystoreFormatException(KeystoreException): pass
-class UnexpectedJavaTypeException(KeystoreException): pass
-class UnexpectedAlgorithmException(KeystoreException): pass
-class UnexpectedKeyEncodingException(KeystoreException): pass
-
-class AbstractKeystoreEntry(object):
-    def __init__(self, **kwargs):
-        super(AbstractKeystoreEntry, self).__init__()
-        self.store_type = kwargs.get("store_type")
-        self.alias = kwargs.get("alias")
-        self.timestamp = kwargs.get("timestamp")
 
 class TrustedCertEntry(AbstractKeystoreEntry):
     def __init__(self, **kwargs):
@@ -114,7 +93,7 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
 
             else:
                 raise UnsupportedKeystoreFormatException("Unknown store type '%s', cannot determine encryption algorithm" % self.store_type)
-        except (sun_crypto.BadHashCheckException, sun_crypto.BadPaddingException):
+        except (BadHashCheckException, BadPaddingException):
             raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % self.alias)
 
         # at this point, 'plaintext' is a PKCS#8 PrivateKeyInfo (see RFC 5208)
