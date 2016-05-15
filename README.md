@@ -2,7 +2,7 @@ pyjks
 =====
 
 A pure python Java KeyStore file parser, including private/secret key decryption.
-Can read JKS, JCEKS and BKS (BouncyCastle) key stores.
+Can read JKS, JCEKS, BKS and UBER (BouncyCastle) key stores.
 
 The best way to utilize a certificate stored in a jks file up to this point has been
 to use the java keytool command to transform to pkcs12, and then openssl to transform to pem.
@@ -17,7 +17,8 @@ This is better:
  * pyasn1 0.1.7+
  * pyasn1_modules 0.0.8+
  * javaobj-py3 0.1.4+
- * pycrypto, if you need to read JCEKS or BKS keystores
+ * pycrypto, if you need to read JCEKS, BKS or UBER keystores
+ * twofish, if you need to read UBER keystores
 
 ## Usage examples:
 

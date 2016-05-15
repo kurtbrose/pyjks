@@ -18,6 +18,7 @@ class KeystoreSignatureException(KeystoreException): pass
 class DuplicateAliasException(KeystoreException): pass
 class NotYetDecryptedException(KeystoreException): pass
 class BadKeystoreFormatException(KeystoreException): pass
+class BadDataLengthException(KeystoreException): pass
 class BadPaddingException(KeystoreException): pass
 class BadHashCheckException(KeystoreException): pass
 class DecryptionFailureException(KeystoreException): pass
@@ -58,6 +59,9 @@ def bitstring_to_bytes(bitstr):
         result.append(byte)
     return bytes(result)
 
+def xor_bytearrays(a, b):
+    return bytearray([x^y for x,y in zip(a,b)])
+
 def print_pem(der_bytes, type):
     print(as_pem(der_bytes, type))
 
@@ -70,16 +74,21 @@ def pkey_as_pem(pk):
 def strip_pkcs5_padding(m):
     """
     Drop PKCS5 padding:  8-(||M|| mod 8) octets each with value 8-(||M|| mod 8)
-
     Note: ideally we would use pycrypto for this, but it doesn't provide padding functionality and the project is virtually dead at this point.
     """
-    if len(m) < 8 or len(m) % 8 != 0:
-        raise BadPaddingException("Unable to strip PKCS5 padding: invalid message length")
+    return strip_pkcs7_padding(m, 8)
+
+def strip_pkcs7_padding(m, block_size):
+    """
+    Same as PKCS#5 padding, except generalized to block sizes other than 8.
+    """
+    if len(m) < block_size or len(m) % block_size != 0:
+        raise BadPaddingException("Unable to strip padding: invalid message length")
 
     m = bytearray(m) # py2/3 compatibility: always returns individual indexed elements as ints
     last_byte = m[-1]
     # the <last_byte> bytes of m must all have value <last_byte>, otherwise something's wrong
-    if (last_byte <= 0 or last_byte > 8) or (m[-last_byte:] != bytearray([last_byte])*last_byte):
-        raise BadPaddingException("Unable to strip PKCS5 padding: invalid padding found")
+    if (last_byte <= 0 or last_byte > block_size) or (m[-last_byte:] != bytearray([last_byte])*last_byte):
+        raise BadPaddingException("Unable to strip padding: invalid padding found")
 
     return bytes(m[:-last_byte]) # back to 'str'/'bytes'

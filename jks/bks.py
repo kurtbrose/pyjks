@@ -231,8 +231,14 @@ class BksKeyStore(KeyStore):
         if store_hmac != computed_hmac:
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
-        entries = {}
         store_type = "bks"
+        entries = cls._load_bks_entries(store_data, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
+        return cls(store_type, entries)
+
+    @classmethod
+    def _load_bks_entries(cls, data, store_type, store_password, try_decrypt_keys=False):
+        entries = {}
+        pos = 0
         while pos < len(data):
             _type = b1.unpack_from(data, pos)[0]; pos += 1
             if _type == 0:
@@ -272,7 +278,7 @@ class BksKeyStore(KeyStore):
                 raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
             entries[alias] = entry
 
-        return cls(store_type, entries)
+        return entries
 
     @classmethod
     def _read_bks_cert(cls, data, pos, store_type):
@@ -303,4 +309,42 @@ class BksKeyStore(KeyStore):
         sealed_data, pos = cls._read_data(data, pos)
         entry = BksSealedKeyEntry(store_type=store_type, encrypted=sealed_data)
         return entry, pos
+
+class UberKeyStore(BksKeyStore):
+    """
+    BouncyCastle "UBER" keystore format parser.
+    """
+    @classmethod
+    def loads(cls, data, store_password, try_decrypt_keys=True):
+        # Uber keystores contain the same entry data as BKS keystores, except they wrap it differently:
+        #    BKS  = BKS_store || HMAC-SHA1(BKS_store)
+        #    UBER = PBEWithSHAAndTwofish-CBC(BKS_store || SHA1(BKS_store))
+        #
+        # where BKS_store represents the entry format shared by both keystore types.
+        #
+        # The Twofish key size is 256 bits, the PBE key derivation scheme is that as outlined by PKCS#12 (RFC 7292),
+        # and the padding scheme for the Twofish cipher is PKCS#7.
+        pos = 0
+        version = b4.unpack_from(data, pos)[0]; pos += 4
+        salt, pos = cls._read_data(data, pos)
+        iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
+
+        encrypted_bks_store = data[pos:]
+        try:
+            decrypted = rfc7292.decrypt_PBEWithSHAAndTwofishCBC(encrypted_bks_store, store_password, salt, iteration_count)
+            decrypted = strip_pkcs7_padding(decrypted, 16)
+        except BadDataLengthException as e:
+            raise BadKeystoreFormatException("Bad UBER keystore format: %s" % str(e))
+        except BadPaddingException as e:
+            raise DecryptionFailureException("Failed to decrypt UBER keystore: bad password?")
+
+        bks_store = decrypted[:-20]
+        bks_hash  = decrypted[-20:]
+
+        if hashlib.sha1(bks_store).digest() != bks_hash:
+            raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
+
+        store_type = "uber"
+        entries = cls._load_bks_entries(bks_store, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
+        return cls(store_type, entries)
 

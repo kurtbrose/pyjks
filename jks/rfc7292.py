@@ -4,6 +4,7 @@ import hashlib
 import ctypes
 from pyasn1.type import univ, namedtype
 from Crypto.Cipher import DES3
+from .util import xor_bytearrays
 
 PBE_WITH_SHA1_AND_TRIPLE_DES_CBC_OID = (1,2,840,113549,1,12,1,3)
 PURPOSE_KEY_MATERIAL = 1
@@ -86,3 +87,31 @@ def decrypt_PBEWithSHAAnd3KeyTripleDESCBC(data, password_str, salt, iteration_co
     des3 = DES3.new(key, DES3.MODE_CBC, IV=iv)
     decrypted = des3.decrypt(data)
     return decrypted
+
+def decrypt_PBEWithSHAAndTwofishCBC(encrypted_data, password, salt, iteration_count):
+    """
+    Decrypts PBEWithSHAAndTwofishCBC, assuming PKCS#12-generated PBE parameters.
+    (Not explicitly defined as an algorithm in RFC 7292, but defined here nevertheless because of the assumption of PKCS#12 parameters).
+    """
+    iv  = derive_key(hashlib.sha1, PURPOSE_IV_MATERIAL,  password, salt, iteration_count, 16)
+    key = derive_key(hashlib.sha1, PURPOSE_KEY_MATERIAL, password, salt, iteration_count, 256//8)
+
+    encrypted_data = bytearray(encrypted_data)
+    encrypted_data_len = len(encrypted_data)
+    if encrypted_data_len % 16 != 0:
+        raise BadDataLengthException("encrypted data is not a multiple of 16 bytes")
+
+    plaintext = bytearray()
+
+    # slow and dirty CBC decrypt
+    from twofish import Twofish
+    cipher = Twofish(key)
+
+    last_cipher_block = bytearray(iv)
+    for block_offset in range(0, encrypted_data_len, 16):
+        cipher_block = encrypted_data[block_offset:block_offset+16]
+        plaintext_block = xor_bytearrays(bytearray(cipher.decrypt(bytes(cipher_block))), last_cipher_block)
+        plaintext.extend(plaintext_block)
+        last_cipher_block = cipher_block
+
+    return bytes(plaintext)

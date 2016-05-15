@@ -2,3 +2,4 @@ pyasn1==0.1.7
 pyasn1_modules==0.0.8
 javaobj-py3==0.1.4
 pycrypto==2.6.1
+twofish==0.3.0
