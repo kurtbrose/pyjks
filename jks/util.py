@@ -9,6 +9,8 @@ b4 = struct.Struct('>L') # unsigned
 b2 = struct.Struct('>H')
 b1 = struct.Struct('B') # unsigned
 
+py23basestring = ("".__class__, u"".__class__) # useful for isinstance checks
+
 RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
 DSA_OID            = (1,2,840,10040,4,1)       # identifier for DSA public/private keys; see RFC 3279, section 2.2.2 (e.g. in PKCS#8 PrivateKeyInfo or X.509 SubjectPublicKeyInfo)
 DSA_WITH_SHA1_OID  = (1,2,840,10040,4,3)       # identifier for the DSA signature algorithm; see RFC 3279, section 2.3.2 (e.g. in X.509 signatures)

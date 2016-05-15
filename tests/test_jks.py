@@ -11,6 +11,7 @@ import jks
 import unittest
 import hashlib
 from . import expected
+from jks.util import py23basestring
 
 class AbstractTest(unittest.TestCase):
     def find_private_key(self, ks, alias):
@@ -40,6 +41,7 @@ class AbstractTest(unittest.TestCase):
             self.fail("Certificate entry not found: %s" % alias)
 
         self.assertTrue(isinstance(c.cert, bytes))
+        self.assertTrue(isinstance(c.type, py23basestring))
         return c
 
     def check_pkey_and_certs_equal(self, pk, algorithm_oid, pkey_pkcs8, certs):
@@ -222,6 +224,175 @@ class JceOnlyTests(AbstractTest):
     def test_unknown_sealed_object_sealAlg(self):
         self.assertRaises(jks.UnexpectedAlgorithmException, lambda: \
             jks.KeyStore.load("tests/keystores/jceks/unknown_sealed_object_sealAlg.jceks", "12345678"))
+
+class BksOnlyTests(AbstractTest):
+    def check_bks_entry(self, entry, store_type):
+        """Checks that apply to BKS entries of any type"""
+        self.assertEqual(entry.store_type, store_type)
+        self.assertTrue(isinstance(entry.alias, py23basestring))
+        self.assertTrue(isinstance(entry.timestamp, int))
+        self.assertTrue(isinstance(entry.cert_chain, list))
+        self.assertTrue(all(isinstance(c, jks.bks.BksTrustedCertEntry) for c in entry.cert_chain))
+
+    def check_cert_entry(self, entry, store_type):
+        self.check_bks_entry(entry, store_type)
+        self.assertTrue(isinstance(entry.cert, bytes))
+        self.assertTrue(isinstance(entry.type, py23basestring))
+        self.assertTrue(entry.is_decrypted())
+
+    def check_sealed_key_entry(self, entry, store_type):
+        self.check_bks_entry(entry, store_type)
+        self.assertTrue(isinstance(entry, jks.bks.BksSealedKeyEntry))
+        if entry.is_decrypted():
+            # all attributes of the nested entry should also be directly accessible through the parent sealed entry,
+            # so run the same check twice with the two different objects
+            self.check_plain_key_entry(entry.nested, store_type)
+            self.check_plain_key_entry(entry, store_type, check_type=False)
+
+    def check_secret_key_entry(self, entry, store_type):
+        self.check_bks_entry(entry, store_type)
+        self.assertTrue(isinstance(entry, jks.bks.BksSecretKeyEntry))
+        self.assertTrue(isinstance(entry.key, bytes))
+
+    def check_plain_key_entry(self, key_entry, store_type, check_type=True):
+        self.check_bks_entry(key_entry, store_type)
+        if check_type:
+            self.assertTrue(isinstance(key_entry, jks.bks.BksKeyEntry))
+        self.assertTrue(isinstance(key_entry.format, py23basestring))
+        self.assertTrue(isinstance(key_entry.algorithm, py23basestring))
+        self.assertTrue(isinstance(key_entry.encoded, bytes))
+        self.assertTrue(key_entry.is_decrypted())
+
+        if key_entry.type == jks.bks.KEY_TYPE_PRIVATE:
+            self.assertTrue(isinstance(key_entry.pkey_pkcs8, bytes))
+            self.assertTrue(isinstance(key_entry.pkey, bytes))
+            self.assertTrue(isinstance(key_entry.algorithm_oid, tuple))
+
+        elif key_entry.type == jks.bks.KEY_TYPE_PUBLIC:
+            self.assertTrue(isinstance(key_entry.public_key_info, bytes))
+            self.assertTrue(isinstance(key_entry.public_key, bytes))
+            self.assertTrue(isinstance(key_entry.algorithm_oid, tuple))
+
+        elif key_entry.type == jks.bks.KEY_TYPE_SECRET:
+            self.assertTrue(isinstance(key_entry.key, bytes))
+
+        else:
+            self.fail("No such key type: %s" % repr(key_entry.type))
+
+    # TODO: code duplication with JKS' check_pkey_and_certs_equal; only difference is that in JKS entries
+    # the cert_chain is stored as a tuple instead of a TrustedCertEntry object.
+    # consider changing that so this logic can be reused
+    def check_pkey_and_certs_equal(self, pk, algorithm_oid, pkey_pkcs8, certs):
+        self.assertEqual(pk.algorithm_oid, algorithm_oid)
+        self.assertEqual(pk.pkey_pkcs8, pkey_pkcs8)
+        self.assertEqual(len(pk.cert_chain), len(certs))
+        for i in range(len(certs)):
+            self.assertEqual(pk.cert_chain[i].cert, certs[i])
+
+    def test_christmas_store_v1(self):
+        store = jks.bks.BksKeyStore.load("tests/keystores/bks/christmas.bksv1", "12345678")
+        self._test_christmas_store(store, "bks")
+    def test_christmas_store_v2(self):
+        store = jks.bks.BksKeyStore.load("tests/keystores/bks/christmas.bksv2", "12345678")
+        self._test_christmas_store(store, "bks")
+    def test_christmas_store_uber(self):
+        store = jks.bks.UberKeyStore.load("tests/keystores/uber/christmas.uber", "12345678")
+        self._test_christmas_store(store, "uber")
+
+    def test_custom_entry_passwords_v1(self):
+        store = jks.bks.BksKeyStore.load("tests/keystores/bks/custom_entry_passwords.bksv1", "store_password")
+        self._test_custom_entry_passwords(store, "bks")
+    def test_custom_entry_passwords_v2(self):
+        store = jks.bks.BksKeyStore.load("tests/keystores/bks/custom_entry_passwords.bksv2", "store_password")
+        self._test_custom_entry_passwords(store, "bks")
+    def test_custom_entry_passwords_uber(self):
+        store = jks.bks.UberKeyStore.load("tests/keystores/uber/custom_entry_passwords.uber", "store_password")
+        self._test_custom_entry_passwords(store, "uber")
+
+    def _test_christmas_store(self, store, store_type):
+        self.assertEqual(store.store_type, store_type)
+        self.assertEqual(len(store.entries), 6)
+        self.assertEqual(len(store.certs), 1)
+        self.assertEqual(len(store.sealed_keys), 3)
+        self.assertEqual(len(store.secret_keys), 1)
+        self.assertEqual(len(store.plain_keys), 1)
+
+        sealed_public = store.entries["sealed_public_key"]
+        self.check_sealed_key_entry(sealed_public, store_type)
+        self.assertTrue(sealed_public.is_decrypted())
+        self.assertEqual(sealed_public.type, jks.bks.KEY_TYPE_PUBLIC)
+        self.assertEqual(sealed_public.algorithm, "RSA")
+        self.assertEqual(sealed_public.algorithm_oid, jks.util.RSA_ENCRYPTION_OID)
+        self.assertEqual(sealed_public.public_key_info, expected.bks_christmas.public_key)
+
+        sealed_private = store.entries["sealed_private_key"]
+        self.check_sealed_key_entry(sealed_private, store_type)
+        self.assertEqual(sealed_private.type, jks.bks.KEY_TYPE_PRIVATE)
+        self.assertEqual(sealed_private.algorithm, "RSA")
+        self.assertTrue(sealed_private.is_decrypted())
+        self.check_pkey_and_certs_equal(sealed_private, jks.util.RSA_ENCRYPTION_OID, expected.bks_christmas.private_key, expected.bks_christmas.certs)
+
+        sealed_secret = store.entries["sealed_secret_key"]
+        self.check_sealed_key_entry(sealed_secret, store_type)
+        self.assertEqual(sealed_secret.type, jks.bks.KEY_TYPE_SECRET)
+        self.assertEqual(sealed_secret.algorithm, "AES")
+        self.check_secret_key_equal(sealed_secret, "AES", 128, b"\x3f\x68\x05\x04\xc6\x6c\xc2\x5a\xae\x65\xd0\xfa\x49\xc5\x26\xec")
+
+        plain_key = store.entries["plain_key"]
+        self.check_plain_key_entry(plain_key, store_type)
+        self.assertEqual(plain_key.type, jks.bks.KEY_TYPE_SECRET)
+        self.assertEqual(plain_key.algorithm, "DES")
+        self.check_secret_key_equal(plain_key, "DES", 64, b"\x4c\xf2\xfe\x91\x5d\x08\x2a\x43")
+
+        cert = store.entries["cert"]
+        self.check_cert_entry(cert, store_type)
+        self.assertEqual(cert.cert, expected.bks_christmas.certs[0])
+
+        stored_value = store.entries["stored_value"]
+        self.check_secret_key_entry(stored_value, store_type)
+        self.assertEqual(stored_value.key, b"\x02\x03\x05\x07\x0B\x0D\x11\x13\x17")
+
+    def _test_custom_entry_passwords(self, store, store_type):
+        self.assertEqual(store.store_type, store_type)
+        self.assertEqual(len(store.entries), 3)
+        self.assertEqual(len(store.certs), 0)
+        self.assertEqual(len(store.sealed_keys), 3)
+        self.assertEqual(len(store.secret_keys), 0)
+        self.assertEqual(len(store.plain_keys), 0)
+
+        attrs_non_encrypted = ["alias", "timestamp", "store_type", "cert_chain"]
+        attrs_encrypted_common = ["type", "format", "algorithm", "encoded"]
+        attrs_encrypted_public  = attrs_encrypted_common + ["public_key_info", "public_key", "algorithm_oid"]
+        attrs_encrypted_private = attrs_encrypted_common + ["pkey", "pkey_pkcs8", "algorithm_oid"]
+        attrs_encrypted_secret  = attrs_encrypted_common + ["key", "key_size"]
+
+        sealed_public = store.entries["sealed_public_key"]
+        self.assertFalse(sealed_public.is_decrypted())
+        for a in attrs_encrypted_public: self.assertRaises(jks.util.NotYetDecryptedException, getattr, sealed_public, a)
+        for a in attrs_non_encrypted: getattr(sealed_public, a) # shouldn't throw
+        self.assertRaises(jks.util.DecryptionFailureException, sealed_public.decrypt, "wrong_password")
+        sealed_public.decrypt("public_password")
+        self.assertTrue(sealed_public.is_decrypted())
+        for a in attrs_encrypted_public: getattr(sealed_public, a) # shouldn't throw
+
+        sealed_private = store.entries["sealed_private_key"]
+        self.assertFalse(sealed_private.is_decrypted())
+        for a in attrs_encrypted_private: self.assertRaises(jks.util.NotYetDecryptedException, getattr, sealed_private, a)
+        for a in attrs_non_encrypted: getattr(sealed_private, a) # shouldn't throw
+        self.assertRaises(jks.util.DecryptionFailureException, sealed_private.decrypt, "wrong_password")
+        sealed_private.decrypt("private_password")
+        self.assertTrue(sealed_private.is_decrypted())
+        for a in attrs_encrypted_private: getattr(sealed_private, a) # shouldn't throw
+
+        sealed_secret = store.entries["sealed_secret_key"]
+        self.assertFalse(sealed_secret.is_decrypted())
+        for a in attrs_encrypted_secret: self.assertRaises(jks.util.NotYetDecryptedException, getattr, sealed_secret, a)
+        for a in attrs_non_encrypted: getattr(sealed_secret, a) # shouldn't throw
+        self.assertRaises(jks.util.DecryptionFailureException, sealed_secret.decrypt, "wrong_password")
+        sealed_secret.decrypt("secret_password")
+        self.assertTrue(sealed_secret.is_decrypted())
+        for a in attrs_encrypted_secret: getattr(sealed_secret, a) # shouldn't throw
+
 
 class MiscTests(AbstractTest):
     def test_bitstring_to_bytes(self):
