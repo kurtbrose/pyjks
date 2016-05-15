@@ -33,7 +33,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 		generatePrivateKeyStore("JKS",   "../keystores/jks/RSA1024.jks",     keyPair.getPrivate(), certs);
 		generatePrivateKeyStore("JCEKS", "../keystores/jceks/RSA1024.jceks", keyPair.getPrivate(), certs);
 
-		writePythonDataFile("../expected/RSA1024.py", keyPair.getPrivate(), certs);
+		writePythonDataFile("../expected/RSA1024.py", keyPair, certs);
 	}
 
 	@Test
@@ -55,7 +55,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 		generateCertsKeyStore("JKS",   "../keystores/jks/3certs.jks", certs, certAliases);
 		generateCertsKeyStore("JCEKS",   "../keystores/jceks/3certs.jceks", certs, certAliases);
 
-		writePythonDataFile("../expected/RSA2048_3certs.py", keyPair.getPrivate(), certs);
+		writePythonDataFile("../expected/RSA2048_3certs.py", keyPair, certs);
 	}
 
 	@Test
@@ -68,7 +68,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 		generatePrivateKeyStore("JKS",   "../keystores/jks/DSA2048.jks",     keyPair.getPrivate(), certs);
 		generatePrivateKeyStore("JCEKS", "../keystores/jceks/DSA2048.jceks", keyPair.getPrivate(), certs);
 
-		writePythonDataFile("../expected/DSA2048.py", keyPair.getPrivate(), certs);
+		writePythonDataFile("../expected/DSA2048.py", keyPair, certs);
 	}
 
 	@Test
@@ -98,7 +98,7 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 
 		generateKeyStore("JCEKS", "../keystores/jceks/custom_entry_passwords.jceks", entriesByAlias, passwordsByAlias, "store_password");
 
-		writePythonDataFile("../expected/custom_entry_passwords.py", keyPair.getPrivate(), certs);
+		writePythonDataFile("../expected/custom_entry_passwords.py", keyPair, certs);
 	}
 
 	@Test
@@ -143,6 +143,6 @@ public class KeystoreGeneratorTest extends PyJksTestCase
 
 		generatePrivateKeyStore("JKS", "../keystores/jks/non_ascii_password.jks", keyPair.getPrivate(), certs, non_ascii_password, non_ascii_password, "mykey");
 
-		writePythonDataFile("../expected/jks_non_ascii_password.py", keyPair.getPrivate(), certs);
+		writePythonDataFile("../expected/jks_non_ascii_password.py", keyPair, certs);
 	}
 }
