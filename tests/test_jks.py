@@ -62,6 +62,12 @@ class JksTests(AbstractTest):
         self.assertEqual(store.store_type, "jks")
         self.assertEqual(len(store.entries), 0)
 
+    def test_bad_keystore_format(self):
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\x00\x00\x00\x00", "") # bad magic bytes
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00", "") # insufficient store version bytes
+        self.assertRaises(jks.util.UnsupportedKeystoreFormatException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00\x00\x00\x00", "") # unknown store version
+        self.assertRaises(jks.util.KeystoreSignatureException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00\x00\x00\x02\x00\x00\x00\x00" + b"\x00"*20, "") # bad signature
+
     def test_rsa_1024(self):
         store = jks.KeyStore.load("tests/keystores/jks/RSA1024.jks", "12345678")
         pk = self.find_private_key(store, "mykey")
@@ -122,6 +128,12 @@ class JceTests(AbstractTest):
         store = jks.KeyStore.load("tests/keystores/jceks/empty.jceks", "")
         self.assertEqual(store.store_type, "jceks")
         self.assertEqual(len(store.entries), 0)
+
+    def test_bad_keystore_format(self):
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\x00\x00\x00\x00", "") # bad magic bytes
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\xCE\xCE\xCE\xCE\x00", "") # insufficient store version bytes
+        self.assertRaises(jks.util.UnsupportedKeystoreFormatException, jks.KeyStore.loads, b"\xCE\xCE\xCE\xCE\x00\x00\x00\x00", "") # unknown store version
+        self.assertRaises(jks.util.KeystoreSignatureException, jks.KeyStore.loads, b"\xCE\xCE\xCE\xCE\x00\x00\x00\x02\x00\x00\x00\x00" + b"\x00"*20, "") # bad signature
 
     def test_rsa_1024(self):
         store = jks.KeyStore.load("tests/keystores/jceks/RSA1024.jceks", "12345678")
@@ -288,6 +300,25 @@ class BksOnlyTests(AbstractTest):
         self.assertEqual(len(pk.cert_chain), len(certs))
         for i in range(len(certs)):
             self.assertEqual(pk.cert_chain[i].cert, certs[i])
+
+    # ----------------------------------------------
+
+    def test_bad_bks_keystore_format(self):
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00", "") # insufficient store version bytes
+        self.assertRaises(jks.util.UnsupportedKeystoreFormatException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x00" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # unknown store version
+        self.assertRaises(jks.util.KeystoreSignatureException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x02" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # bad HMAC
+
+    def test_bad_uber_keystore_format(self):
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.UberKeyStore.loads, b"\x00\x00\x00", "") # insufficient store version bytes
+        self.assertRaises(jks.util.UnsupportedKeystoreFormatException, jks.bks.UberKeyStore.loads, b"\x00\x00\x00\x00" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # unknown store version
+
+        password = ""
+        salt = b"\xFF"*8
+        self.assertRaises(jks.util.KeystoreSignatureException, jks.bks.UberKeyStore.loads,
+            b"\x00\x00\x00\x01" + \
+            b"\x00\x00\x00\x08" + salt + \
+            b"\x00\x00\x00\x14" + \
+            jks.rfc7292.encrypt_PBEWithSHAAndTwofishCBC(b"\00"*20, password, salt, 0x14), password) # 0-byte embedded BKS keystore + bad SHA-1 hash of that 0-byte store
 
     def test_christmas_store_v1(self):
         store = jks.bks.BksKeyStore.load("tests/keystores/bks/christmas.bksv1", "12345678")

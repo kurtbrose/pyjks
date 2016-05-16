@@ -212,29 +212,36 @@ class BksKeyStore(KeyStore):
 
     @classmethod
     def loads(cls, data, store_password, try_decrypt_keys=True):
-        pos = 0
-        version = b4.unpack_from(data, pos)[0]; pos += 4
-        salt, pos = cls._read_data(data, pos)
-        iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
+        try:
+            pos = 0
+            version = b4.unpack_from(data, pos)[0]; pos += 4
+            if version not in [1,2]:
+                raise UnsupportedKeystoreFormatException("Unsupported BKS keystore version; only V1 and V2 supported, found v"+repr(version))
 
-        store_data = data[pos:-20]
-        store_hmac = data[-20:]
+            salt, pos = cls._read_data(data, pos)
+            iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
 
-        hmac_fn = hashlib.sha1
-        hmac_key_size = hmac_fn().digest_size
-        hmac_key_size = hmac_key_size*8 if version != 1 else hmac_key_size
-        hmac_key = rfc7292.derive_key(hmac_fn, rfc7292.PURPOSE_MAC_MATERIAL, store_password, salt, iteration_count, hmac_key_size//8)
+            store_data = data[pos:-20]
+            store_hmac = data[-20:]
 
-        hmac = HMAC.new(hmac_key, digestmod=SHA)
-        hmac.update(store_data)
+            hmac_fn = hashlib.sha1
+            hmac_key_size = hmac_fn().digest_size
+            hmac_key_size = hmac_key_size*8 if version != 1 else hmac_key_size
+            hmac_key = rfc7292.derive_key(hmac_fn, rfc7292.PURPOSE_MAC_MATERIAL, store_password, salt, iteration_count, hmac_key_size//8)
 
-        computed_hmac = hmac.digest()
-        if store_hmac != computed_hmac:
-            raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
+            hmac = HMAC.new(hmac_key, digestmod=SHA)
+            hmac.update(store_data)
 
-        store_type = "bks"
-        entries = cls._load_bks_entries(store_data, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
-        return cls(store_type, entries)
+            computed_hmac = hmac.digest()
+            if store_hmac != computed_hmac:
+                raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
+
+            store_type = "bks"
+            entries = cls._load_bks_entries(store_data, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
+            return cls(store_type, entries)
+
+        except struct.error as e:
+            raise BadKeystoreFormatException(e)
 
     @classmethod
     def _load_bks_entries(cls, data, store_type, store_password, try_decrypt_keys=False):
@@ -325,26 +332,33 @@ class UberKeyStore(BksKeyStore):
         #
         # The Twofish key size is 256 bits, the PBE key derivation scheme is that as outlined by PKCS#12 (RFC 7292),
         # and the padding scheme for the Twofish cipher is PKCS#7.
-        pos = 0
-        version = b4.unpack_from(data, pos)[0]; pos += 4
-        salt, pos = cls._read_data(data, pos)
-        iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
-
-        encrypted_bks_store = data[pos:]
         try:
-            decrypted = rfc7292.decrypt_PBEWithSHAAndTwofishCBC(encrypted_bks_store, store_password, salt, iteration_count)
-        except BadDataLengthException as e:
-            raise BadKeystoreFormatException("Bad UBER keystore format: %s" % str(e))
-        except BadPaddingException as e:
-            raise DecryptionFailureException("Failed to decrypt UBER keystore: bad password?")
+            pos = 0
+            version = b4.unpack_from(data, pos)[0]; pos += 4
+            if version != 1:
+                raise UnsupportedKeystoreFormatException('Unsupported UBER keystore version; only v1 supported, found v'+repr(version))
 
-        bks_store = decrypted[:-20]
-        bks_hash  = decrypted[-20:]
+            salt, pos = cls._read_data(data, pos)
+            iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
 
-        if hashlib.sha1(bks_store).digest() != bks_hash:
-            raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
+            encrypted_bks_store = data[pos:]
+            try:
+                decrypted = rfc7292.decrypt_PBEWithSHAAndTwofishCBC(encrypted_bks_store, store_password, salt, iteration_count)
+            except BadDataLengthException as e:
+                raise BadKeystoreFormatException("Bad UBER keystore format: %s" % str(e))
+            except BadPaddingException as e:
+                raise DecryptionFailureException("Failed to decrypt UBER keystore: bad password?")
 
-        store_type = "uber"
-        entries = cls._load_bks_entries(bks_store, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
-        return cls(store_type, entries)
+            bks_store = decrypted[:-20]
+            bks_hash  = decrypted[-20:]
+
+            if hashlib.sha1(bks_store).digest() != bks_hash:
+                raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
+
+            store_type = "uber"
+            entries = cls._load_bks_entries(bks_store, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
+            return cls(store_type, entries)
+
+        except struct.error as e:
+            raise BadKeystoreFormatException(e)
 

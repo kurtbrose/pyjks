@@ -94,3 +94,12 @@ def strip_pkcs7_padding(m, block_size):
         raise BadPaddingException("Unable to strip padding: invalid padding found")
 
     return bytes(m[:-last_byte]) # back to 'str'/'bytes'
+
+def add_pkcs7_padding(m, block_size):
+    if block_size <= 0 or block_size > 255:
+        raise ValueError("Invalid block size")
+
+    m = bytearray(m)
+    num_padding_bytes = block_size - (len(m) % block_size)
+    m = m + bytearray([num_padding_bytes]*num_padding_bytes)
+    return bytes(m)
