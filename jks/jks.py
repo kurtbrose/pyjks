@@ -74,25 +74,20 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
 
         plaintext = None
         try:
-            if self.store_type == "jks":
-                if algo_id != sun_crypto.SUN_JKS_ALGO_ID:
-                    raise UnexpectedAlgorithmException("Unknown JKS private key algorithm OID: {0}".format(algo_id))
+            if algo_id == sun_crypto.SUN_JKS_ALGO_ID:
                 plaintext = sun_crypto.jks_pkey_decrypt(encrypted_private_key, key_password)
 
-            elif self.store_type == "jceks":
-                if algo_id == sun_crypto.SUN_JKS_ALGO_ID:
-                    plaintext = sun_crypto.jks_pkey_decrypt(encrypted_private_key, key_password)
-                elif algo_id == sun_crypto.SUN_JCE_ALGO_ID:
-                    # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
-                    params = decoder.decode(algo_params, asn1Spec=rfc2898.PBEParameter())[0]
-                    salt = params['salt'].asOctets()
-                    iteration_count = int(params['iterationCount'])
-                    plaintext = sun_crypto.jce_pbe_decrypt(encrypted_private_key, key_password, salt, iteration_count)
-                else:
-                    raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
-
+            elif algo_id == sun_crypto.SUN_JCE_ALGO_ID:
+                if self.store_type != "jceks":
+                    raise UnexpectedAlgorithmException("Encountered JCEKS private key protection algorithm in JKS keystore")
+                # see RFC 2898, section A.3: PBES1 and definitions of AlgorithmIdentifier and PBEParameter
+                params = decoder.decode(algo_params, asn1Spec=rfc2898.PBEParameter())[0]
+                salt = params['salt'].asOctets()
+                iteration_count = int(params['iterationCount'])
+                plaintext = sun_crypto.jce_pbe_decrypt(encrypted_private_key, key_password, salt, iteration_count)
             else:
-                raise BadKeystoreFormatException("Unknown store type '%s', cannot determine encryption algorithm" % self.store_type)
+                raise UnexpectedAlgorithmException("Unknown %s private key protection algorithm: %s" % (self.store_type.upper(), algo_id))
+
         except (BadHashCheckException, BadPaddingException):
             raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % self.alias)
 
