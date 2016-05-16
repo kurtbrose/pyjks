@@ -169,9 +169,10 @@ class BksSealedKeyEntry(AbstractBksEntry):
         #   BrokenPBEWithSHAAnd3-KeyTripleDES-CBC  ->  org.bouncycastle.jce.provider.BrokenJCEBlockCipher$BrokePBEWithSHAAndDES3Key
         #      OldPBEWithSHAAnd3-KeyTripleDES-CBC  ->  org.bouncycastle.jce.provider.BrokenJCEBlockCipher$OldPBEWithSHAAndDES3Key
         #
-        decrypted = rfc7292.decrypt_PBEWithSHAAnd3KeyTripleDESCBC(encrypted_blob, key_password, salt, iteration_count)
         try:
-            decrypted = strip_pkcs5_padding(decrypted)
+            decrypted = rfc7292.decrypt_PBEWithSHAAnd3KeyTripleDESCBC(encrypted_blob, key_password, salt, iteration_count)
+        except BadDataLengthException:
+            raise BadKeystoreFormatException("Bad BKS entry format: %s" % str(e))
         except BadPaddingException:
             raise DecryptionFailureException("Failed to decrypt data for key '%s'; wrong password?" % self.alias)
 
@@ -332,7 +333,6 @@ class UberKeyStore(BksKeyStore):
         encrypted_bks_store = data[pos:]
         try:
             decrypted = rfc7292.decrypt_PBEWithSHAAndTwofishCBC(encrypted_bks_store, store_password, salt, iteration_count)
-            decrypted = strip_pkcs7_padding(decrypted, 16)
         except BadDataLengthException as e:
             raise BadKeystoreFormatException("Bad UBER keystore format: %s" % str(e))
         except BadPaddingException as e:

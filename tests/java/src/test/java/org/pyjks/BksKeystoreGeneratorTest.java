@@ -6,10 +6,12 @@ import java.security.Key;
 import java.security.KeyPair;
 import java.security.KeyStore;
 import java.security.KeyStoreSpi;
+import java.security.Provider;
 import java.security.Security;
 import java.security.cert.Certificate;
 import java.util.Date;
 import java.util.Hashtable;
+import javax.crypto.Cipher;
 import javax.crypto.SecretKey;
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.DESKeySpec;
@@ -79,6 +81,80 @@ public class BksKeystoreGeneratorTest extends PyJksTestCase
 			(byte) 0x00, (byte) 0x29,
 		});
 		System.out.println(toPythonString(generatePkcs12DerivedKey(new SHA1Digest(), KEY, fancyPassword, new byte[]{1,2,3,4,5,6,7,8}, 1000, 129)));
+	}
+
+	protected byte[] encryptPBEWithSHAAndTwofishCBC(byte[] input, String password, byte[] salt, int iterationCount) throws Exception
+	{
+		Provider bcProv = Security.getProvider("BC");
+		if (bcProv == null)
+			Security.addProvider(new BouncyCastleProvider());
+
+		try
+		{
+			Cipher c = makePBECipher("PBEWithSHAAndTwofish-CBC", Cipher.ENCRYPT_MODE, password, salt, iterationCount);
+			return c.doFinal(input);
+		}
+		finally
+		{
+			if (bcProv == null)
+				Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
+		}
+	}
+
+	protected byte[] encryptPBEWithSHAAnd3KeyTripleDESCBC(byte[] input, String password, byte[] salt, int iterationCount) throws Exception
+	{
+		Provider bcProv = Security.getProvider("BC");
+		if (bcProv == null)
+			Security.addProvider(new BouncyCastleProvider());
+
+		try
+		{
+			Cipher c = makePBECipher("PBEWithSHAAnd3-KeyTripleDES-CBC", Cipher.ENCRYPT_MODE, password, salt, iterationCount);
+			return c.doFinal(input);
+		}
+		finally
+		{
+			if (bcProv == null)
+				Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
+		}
+	}
+
+	@Test
+	public void generatePBEWithSHAAndTwofishCBCTestVectors() throws Exception
+	{
+		String fancyPassword = StringUtils.newStringUtf16Be(new byte[]{
+			(byte) 0x10, (byte) 0xDA,
+			(byte) 0x00, (byte) 0x28,
+			(byte) 0x0C, (byte) 0xA0,
+			(byte) 0x76, (byte) 0xCA,
+			(byte) 0x0C, (byte) 0xA0,
+			(byte) 0x10, (byte) 0xDA,
+			(byte) 0x00, (byte) 0x29,
+		});
+		System.out.println(toPythonString(encryptPBEWithSHAAndTwofishCBC("sample".getBytes("UTF-8"), "mypassword", new byte[]{1,2,3,4,5,6,7,8}, 1000)));
+		System.out.println(toPythonString(encryptPBEWithSHAAndTwofishCBC("sample".getBytes("UTF-8"), fancyPassword, new byte[]{1,2,3,4,5,6,7,8}, 1000)));
+
+		System.out.println(toPythonString(encryptPBEWithSHAAndTwofishCBC("-------16-------".getBytes("UTF-8"), "mypassword", new byte[]{1,2,3,4,5,6,7,8}, 1000)));
+		System.out.println(toPythonString(encryptPBEWithSHAAndTwofishCBC("-------16-------".getBytes("UTF-8"), fancyPassword, new byte[]{1,2,3,4,5,6,7,8}, 1000)));
+	}
+
+	@Test
+	public void generatePBEWithSHAAnd3KeyTripleDESCBCTestVectors() throws Exception
+	{
+		String fancyPassword = StringUtils.newStringUtf16Be(new byte[]{
+			(byte) 0x10, (byte) 0xDA,
+			(byte) 0x00, (byte) 0x28,
+			(byte) 0x0C, (byte) 0xA0,
+			(byte) 0x76, (byte) 0xCA,
+			(byte) 0x0C, (byte) 0xA0,
+			(byte) 0x10, (byte) 0xDA,
+			(byte) 0x00, (byte) 0x29,
+		});
+		System.out.println(toPythonString(encryptPBEWithSHAAnd3KeyTripleDESCBC("sample".getBytes("UTF-8"), "mypassword", new byte[]{1,2,3,4,5,6,7,8}, 1000)));
+		System.out.println(toPythonString(encryptPBEWithSHAAnd3KeyTripleDESCBC("sample".getBytes("UTF-8"), fancyPassword, new byte[]{1,2,3,4,5,6,7,8}, 1000)));
+
+		System.out.println(toPythonString(encryptPBEWithSHAAnd3KeyTripleDESCBC("-------16-------".getBytes("UTF-8"), "mypassword", new byte[]{1,2,3,4,5,6,7,8}, 1000)));
+		System.out.println(toPythonString(encryptPBEWithSHAAnd3KeyTripleDESCBC("-------16-------".getBytes("UTF-8"), fancyPassword, new byte[]{1,2,3,4,5,6,7,8}, 1000)));
 	}
 
 	protected void populateChristmasStore(KeyStore ks, char[] passwordChars, KeyPair keyPair, SecretKey secretKey, SecretKey plainKey, Certificate cert, byte[] storedValue) throws Exception

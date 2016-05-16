@@ -4,7 +4,7 @@ import hashlib
 import ctypes
 from pyasn1.type import univ, namedtype
 from Crypto.Cipher import DES3
-from .util import xor_bytearrays
+from .util import xor_bytearrays, strip_pkcs7_padding, BadDataLengthException
 
 PBE_WITH_SHA1_AND_TRIPLE_DES_CBC_OID = (1,2,840,113549,1,12,1,3)
 PURPOSE_KEY_MATERIAL = 1
@@ -82,10 +82,15 @@ def _adjust(a, a_offset, b):
         x >>= 8
 
 def decrypt_PBEWithSHAAnd3KeyTripleDESCBC(data, password_str, salt, iteration_count):
+    iv  = derive_key(hashlib.sha1, PURPOSE_IV_MATERIAL,  password_str, salt, iteration_count, 64//8)
     key = derive_key(hashlib.sha1, PURPOSE_KEY_MATERIAL, password_str, salt, iteration_count, 192//8)
-    iv = derive_key(hashlib.sha1, PURPOSE_IV_MATERIAL, password_str, salt, iteration_count, 64//8)
+
+    if len(data) % 8 != 0:
+        raise BadDataLengthException("encrypted data length is not a multiple of 8 length")
+
     des3 = DES3.new(key, DES3.MODE_CBC, IV=iv)
     decrypted = des3.decrypt(data)
+    decrypted = strip_pkcs7_padding(decrypted, 8)
     return decrypted
 
 def decrypt_PBEWithSHAAndTwofishCBC(encrypted_data, password, salt, iteration_count):
@@ -99,7 +104,7 @@ def decrypt_PBEWithSHAAndTwofishCBC(encrypted_data, password, salt, iteration_co
     encrypted_data = bytearray(encrypted_data)
     encrypted_data_len = len(encrypted_data)
     if encrypted_data_len % 16 != 0:
-        raise BadDataLengthException("encrypted data is not a multiple of 16 bytes")
+        raise BadDataLengthException("encrypted data length is not a multiple of 16 bytes")
 
     plaintext = bytearray()
 
@@ -114,4 +119,5 @@ def decrypt_PBEWithSHAAndTwofishCBC(encrypted_data, password, salt, iteration_co
         plaintext.extend(plaintext_block)
         last_cipher_block = cipher_block
 
+    plaintext = strip_pkcs7_padding(plaintext, 16)
     return bytes(plaintext)

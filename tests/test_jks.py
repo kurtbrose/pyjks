@@ -428,7 +428,7 @@ class MiscTests(AbstractTest):
         self.assertEqual(b"sample", jks.sun_crypto.jce_pbe_decrypt(b"\xef\x9f\xbd\xc5\x91\x5f\x49\x50", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x05", 42))
         self.assertEqual(b"sample", jks.sun_crypto.jce_pbe_decrypt(b"\x72\x8f\xd8\xcc\x21\x41\x25\x80", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x04", 42))
 
-    def test_pkcs12_derive_key(self):
+    def test_pkcs12_key_derivation(self):
         self.assertEqual(jks.rfc7292.derive_key(hashlib.sha1, jks.rfc7292.PURPOSE_MAC_MATERIAL, "password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000, 0), b"")
         self.assertEqual(jks.rfc7292.derive_key(hashlib.sha1, jks.rfc7292.PURPOSE_MAC_MATERIAL, "password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000, 16), b"\x21\x2b\xab\x71\x42\x2d\x31\xa5\xd3\x93\x4c\x20\xe5\xe7\x7e\xb7")
 
@@ -443,6 +443,28 @@ class MiscTests(AbstractTest):
             b"\xf9\x5c\xba\x37\xad\xd3\xe2\xb2\xaa\xb3\x37\x60\x42\x3d\x69\x29\xd1\x96\x47\x32\x6c\x41\x57\xfa\x0e\x20\x87\xd6\xa7\x40\xae\x0f" + \
             b"\xe8\x17\xd8\x8e\xda\x12\x53\xac\x7e\x19\x99\xc6\x26\x20\xed\x5d\xcd\x44\xe4\xed\x05\xb9\xdc\x39\x6a\x91\x1b\x00\xbb\x39\x3e\xd8" + \
             b"\x9b")
+
+    def test_decrypt_PBEWithSHAAnd3KeyTripleDESCBC(self):
+        fancy_password = u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029"
+        self.assertEqual(b"sample", jks.rfc7292.decrypt_PBEWithSHAAnd3KeyTripleDESCBC(b"\x69\xea\xff\x28\x65\x85\x0a\x68", "mypassword",   b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+        self.assertEqual(b"sample", jks.rfc7292.decrypt_PBEWithSHAAnd3KeyTripleDESCBC(b"\x73\xf1\xc7\x14\x74\xa3\x04\x59", fancy_password, b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+
+        self.assertEqual(b"-------16-------", jks.rfc7292.decrypt_PBEWithSHAAnd3KeyTripleDESCBC(b"\x4c\xbb\xc8\x03\x09\x35\x27\xcb\xd6\x98\x81\xba\x93\x75\x7a\x96\x60\xf2\x5b\xa9\x1e\x32\xe2\x4d", "mypassword",   b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+        self.assertEqual(b"-------16-------", jks.rfc7292.decrypt_PBEWithSHAAnd3KeyTripleDESCBC(b"\xe1\xce\x6d\xa1\x5b\x81\x0c\xdd\x1c\x7c\xbd\x14\x4a\x64\xc4\xa1\xda\x26\x27\xe3\x50\x87\x9d\xd1", fancy_password, b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+
+        self.assertRaises(jks.util.BadDataLengthException, jks.rfc7292.decrypt_PBEWithSHAAnd3KeyTripleDESCBC, b"\x00", "", b"", 20)
+
+    def test_decrypt_PBEWithSHAAndTwofishCBC(self):
+        fancy_password = u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029"
+        self.assertEqual(b"sample", jks.rfc7292.decrypt_PBEWithSHAAndTwofishCBC(b"\xc5\x22\x81\xc9\xa2\x24\x4b\x10\xf9\x1c\x6c\xbc\x67\x10\x42\x3e", "mypassword",   b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+        self.assertEqual(b"sample", jks.rfc7292.decrypt_PBEWithSHAAndTwofishCBC(b"\xc8\xc4\x7a\xe6\xa7\xc2\x80\xd7\x05\x5f\xe2\x4f\xf4\x20\x30\x7c", fancy_password, b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+
+        self.assertEqual(b"-------16-------", jks.rfc7292.decrypt_PBEWithSHAAndTwofishCBC(
+            b"\xf3\x4e\x3a\xd9\x3c\x48\x42\x53\xec\x07\xef\x00\x82\x56\x30\xee\x4f\xdf\x52\x0b\x5a\xd4\x8c\x9e\xa6\x72\x19\xe4\x90\x0b\xf1\x0c", "mypassword", b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+        self.assertEqual(b"-------16-------", jks.rfc7292.decrypt_PBEWithSHAAndTwofishCBC(
+            b"\xe0\xc7\x1a\xe8\xf4\x90\xca\x17\xa8\x0c\xc1\x1c\xea\x2e\x96\x38\x9d\x8d\xcc\xa4\x20\x15\x05\xa8\x57\xfa\x47\xa3\x0b\x97\xf5\x00", fancy_password, b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000))
+
+        self.assertRaises(jks.util.BadDataLengthException, jks.rfc7292.decrypt_PBEWithSHAAndTwofishCBC, b"\x00", "", b"", 20)
 
     def test_filter_attributes(self):
         ks = jks.KeyStore("jks", {})
