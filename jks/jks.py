@@ -92,7 +92,7 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
                     raise UnexpectedAlgorithmException("Unknown JCEKS private key algorithm OID: {0}".format(algo_id))
 
             else:
-                raise UnsupportedKeystoreFormatException("Unknown store type '%s', cannot determine encryption algorithm" % self.store_type)
+                raise BadKeystoreFormatException("Unknown store type '%s', cannot determine encryption algorithm" % self.store_type)
         except (BadHashCheckException, BadPaddingException):
             raise DecryptionFailureException("Failed to decrypt data for private key '%s'; wrong password?" % self.alias)
 
@@ -245,7 +245,7 @@ class KeyStore(object):
         try:
             version = b4.unpack_from(data, 4)[0]
             if version != 2:
-                raise UnsupportedKeystoreFormatException('Unsupported keystore version; only v2 supported, found v'+repr(version))
+                raise UnsupportedKeystoreVersionException('Unsupported keystore version; only v2 supported, found v'+repr(version))
 
             entries = {}
 

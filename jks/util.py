@@ -24,7 +24,7 @@ class BadDataLengthException(KeystoreException): pass
 class BadPaddingException(KeystoreException): pass
 class BadHashCheckException(KeystoreException): pass
 class DecryptionFailureException(KeystoreException): pass
-class UnsupportedKeystoreFormatException(KeystoreException): pass
+class UnsupportedKeystoreVersionException(KeystoreException): pass
 class UnexpectedJavaTypeException(KeystoreException): pass
 class UnexpectedAlgorithmException(KeystoreException): pass
 class UnexpectedKeyEncodingException(KeystoreException): pass

@@ -216,7 +216,7 @@ class BksKeyStore(KeyStore):
             pos = 0
             version = b4.unpack_from(data, pos)[0]; pos += 4
             if version not in [1,2]:
-                raise UnsupportedKeystoreFormatException("Unsupported BKS keystore version; only V1 and V2 supported, found v"+repr(version))
+                raise UnsupportedKeystoreVersionException("Unsupported BKS keystore version; only V1 and V2 supported, found v"+repr(version))
 
             salt, pos = cls._read_data(data, pos)
             iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
@@ -336,7 +336,7 @@ class UberKeyStore(BksKeyStore):
             pos = 0
             version = b4.unpack_from(data, pos)[0]; pos += 4
             if version != 1:
-                raise UnsupportedKeystoreFormatException('Unsupported UBER keystore version; only v1 supported, found v'+repr(version))
+                raise UnsupportedKeystoreVersionException('Unsupported UBER keystore version; only v1 supported, found v'+repr(version))
 
             salt, pos = cls._read_data(data, pos)
             iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
