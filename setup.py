@@ -30,7 +30,7 @@ from setuptools import setup, find_packages
 setup(
     name='pyjks',
     version='0.4.1dev',
-    author="Kurt Rose",
+    author="Kurt Rose, Jeroen De Ridder",
     author_email="kurt@kurtrose.com",
     description='Pure-Python Java Keystore (JKS) library',
     keywords="JKS JCEKS java keystore security ssl",
