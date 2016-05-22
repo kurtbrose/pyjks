@@ -86,7 +86,7 @@ def decrypt_PBEWithSHAAnd3KeyTripleDESCBC(data, password_str, salt, iteration_co
     key = derive_key(hashlib.sha1, PURPOSE_KEY_MATERIAL, password_str, salt, iteration_count, 192//8)
 
     if len(data) % 8 != 0:
-        raise BadDataLengthException("encrypted data length is not a multiple of 8 length")
+        raise BadDataLengthException("encrypted data length is not a multiple of 8 bytes")
 
     des3 = DES3.new(key, DES3.MODE_CBC, IV=iv)
     decrypted = des3.decrypt(data)
