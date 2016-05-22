@@ -1,5 +1,5 @@
 # vim: set et ai ts=4 sts=4 sw=4:
-"""JKS/JCEKS file format decoder.  Use in conjunction with PyOpenSSL
+"""JKS/JCEKS file format decoder. Use in conjunction with PyOpenSSL
 to translate to PEM, or load private key and certs directly into
 openssl structs and wrap sockets.
 
@@ -50,21 +50,39 @@ SIGNATURE_WHITENING = b"Mighty Aphrodite"
 
 
 class TrustedCertEntry(AbstractKeystoreEntry):
+    """Represents a trusted certificate entry in a JKS or JCEKS keystore."""
+
     def __init__(self, **kwargs):
         super(TrustedCertEntry, self).__init__(**kwargs)
         self.type = kwargs.get("type")
+        """A string indicating the type of certificate. Unless in exotic applications, this is usually ``X.509``."""
         self.cert = kwargs.get("cert")
+        """A byte string containing the actual certificate data. In the case of X.509 certificates, this is the DER-encoded
+        X.509 representation of the certificate."""
 
     def is_decrypted(self):
+        """Always returns ``True`` for this entry type."""
         return True
+
     def decrypt(self, password):
+        """Does nothing for this entry type; certificates are inherently public data and are not stored in encrypted form."""
         return
 
 
 class PrivateKeyEntry(AbstractKeystoreEntry):
+    """Represents a private key entry in a JKS or JCEKS keystore (e.g. an RSA or DSA private key)."""
+
     def __init__(self, **kwargs):
         super(PrivateKeyEntry, self).__init__(**kwargs)
         self.cert_chain = kwargs.get("cert_chain")
+        """
+        A list of tuples, representing the certificate chain associated with the private key. Each element of the list of a 2-tuple
+        containing the following data:
+
+            - ``[0]``: A string indicating the type of certificate. Unless in exotic applications, this is usually ``X.509``.
+            - ``[1]``: A byte string containing the actual certificate data. In the case of X.509 certificates, this is the DER-encoded X.509 representation of the certificate.
+        """
+
         self._encrypted = kwargs.get("encrypted")
         self._pkey = kwargs.get("pkey")
         self._pkey_pkcs8 = kwargs.get("pkey_pkcs8")
@@ -118,6 +136,8 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
 
 
 class SecretKeyEntry(AbstractKeystoreEntry):
+    """Represents a secret (symmetric) key entry in a JCEKS keystore (e.g. an AES or DES key)."""
+
     def __init__(self, **kwargs):
         super(SecretKeyEntry, self).__init__(**kwargs)
         self._encrypted = kwargs.get("sealed_obj")
@@ -206,29 +226,25 @@ class SecretKeyEntry(AbstractKeystoreEntry):
 # --------------------------------------------------------------------------
 
 class KeyStore(object):
-    def __init__(self, store_type, entries):
-        self.store_type = store_type
-        self.entries = dict(entries)
-
-    @property
-    def certs(self):
-        return dict([(a, e) for a, e in self.entries.items()
-                     if isinstance(e, TrustedCertEntry)])
-
-    @property
-    def secret_keys(self):
-        return dict([(a, e) for a, e in self.entries.items()
-                     if isinstance(e, SecretKeyEntry)])
-
-    @property
-    def private_keys(self):
-        return dict([(a, e) for a, e in self.entries.items()
-                     if isinstance(e, PrivateKeyEntry)])
+    """Represents a loaded JKS or JCEKS keystore."""
 
     @classmethod
     def load(cls, filename, store_password, try_decrypt_keys=True):
+        """
+        Convenience wrapper function; reads the contents of the given file
+        and passes it through to :func:`loads`. See :func:`loads`.
+        """
+        with open(filename, 'rb') as file:
+            input_bytes = file.read()
+            ret = cls.loads(input_bytes,
+                            store_password,
+                            try_decrypt_keys=try_decrypt_keys)
+        return ret
+
+    @classmethod
+    def loads(cls, data, store_password, try_decrypt_keys=True):
         """Loads the given keystore file using the supplied password for
-        verifying its integrity, and returns a jks.KeyStore instance.
+        verifying its integrity, and returns a :class:`KeyStore` instance.
 
         Note that entries in the store that represent some form of
         cryptographic key material are stored in encrypted form, and
@@ -252,26 +268,40 @@ class KeyStore(object):
            manual follow-up decrypt(key_password) call from the user
            before its individual attributes become accessible.
 
-        Setting try_decrypt_keys to False disables this automatic
+        Setting ``try_decrypt_keys`` to ``False`` disables this automatic
         decryption attempt, and returns all key entries in encrypted
         form.
 
         You can query whether a returned entry object has already been
-        decrypted by calling the .is_decrypted() method on it.
+        decrypted by calling the :meth:`is_decrypted` method on it.
         Attempting to access attributes of an entry that has not yet
-        been decrypted will result in a NotYetDecryptedException.
-        """
-        with open(filename, 'rb') as file:
-            input_bytes = file.read()
-            ret = cls.loads(input_bytes,
-                            store_password,
-                            try_decrypt_keys=try_decrypt_keys)
-        return ret
+        been decrypted will result in a
+        :class:`~jks.util.NotYetDecryptedException`.
 
-    @classmethod
-    def loads(cls, data, store_password, try_decrypt_keys=True):
-        """
-        See the documentation on the load() function.
+        :param bytes data: Byte string representation of the keystore
+          to be loaded.
+        :param str password: Keystore password string
+        :param bool try_decrypt_keys: Whether to automatically try to
+          decrypt any encountered key entries using the same password
+          as the keystore password.
+
+        :returns: A loaded :class:`KeyStore` instance, if the keystore
+          could be successfully parsed and the supplied store password
+          is correct.
+
+          If the ``try_decrypt_keys`` parameter was set to ``True``, any
+          keys that could be successfully decrypted using the store
+          password have already been decrypted; otherwise, no atttempt
+          to decrypt any key entries is made.
+
+        :raises BadKeystoreFormatException: If the keystore is malformed
+          in some way
+        :raises UnsupportedKeystoreVersionException: If the keystore
+          contains an unknown format version number
+        :raises KeystoreSignatureException: If the keystore signature
+          could not be verified using the supplied store password
+        :raises DuplicateAliasException: If the keystore contains
+          duplicate aliases
         """
         store_type = ""
         magic_number = data[:4]
@@ -342,6 +372,31 @@ class KeyStore(object):
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
         return cls(store_type, entries)
+
+    def __init__(self, store_type, entries):
+        self.store_type = store_type  #: A string indicating the type of Java keystore that was loaded. Can be one of: ``jks``, ``jceks``.
+        self.entries = dict(entries)  #: A dictionary of all entries in the keystore, mapped by alias.
+
+    @property
+    def certs(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`TrustedCertEntry`."""
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, TrustedCertEntry)])
+
+    @property
+    def secret_keys(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`SecretKeyEntry`."""
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, SecretKeyEntry)])
+
+    @property
+    def private_keys(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`PrivateKeyEntry`."""
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, PrivateKeyEntry)])
 
     @classmethod
     def _read_trusted_cert(cls, data, pos, store_type):

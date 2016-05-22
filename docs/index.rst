@@ -51,15 +51,25 @@ context using a JKS through PyJKS::
 And that's just the beginning! Take a look at PyJKS's always-expanding
 API for more possibilities.
 
+Installation
+------------
+You can install ``pyjks`` with ``pip``:
+
+.. code-block:: console
+
+    $ pip install pyjks
+
 Contents:
+---------
 
 .. toctree::
    :maxdepth: 2
 
+   jks
 
 
 Indices and tables
-==================
+------------------
 
 * :ref:`genindex`
 * :ref:`modindex`
