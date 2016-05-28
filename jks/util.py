@@ -15,21 +15,55 @@ RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
 DSA_OID            = (1,2,840,10040,4,1)       # identifier for DSA public/private keys; see RFC 3279, section 2.2.2 (e.g. in PKCS#8 PrivateKeyInfo or X.509 SubjectPublicKeyInfo)
 DSA_WITH_SHA1_OID  = (1,2,840,10040,4,3)       # identifier for the DSA signature algorithm; see RFC 3279, section 2.3.2 (e.g. in X.509 signatures)
 
-class KeystoreException(Exception): pass
-class KeystoreSignatureException(KeystoreException): pass
-class DuplicateAliasException(KeystoreException): pass
-class NotYetDecryptedException(KeystoreException): pass
-class BadKeystoreFormatException(KeystoreException): pass
-class BadDataLengthException(KeystoreException): pass
-class BadPaddingException(KeystoreException): pass
-class BadHashCheckException(KeystoreException): pass
-class DecryptionFailureException(KeystoreException): pass
-class UnsupportedKeystoreVersionException(KeystoreException): pass
-class UnexpectedJavaTypeException(KeystoreException): pass
-class UnexpectedAlgorithmException(KeystoreException): pass
-class UnexpectedKeyEncodingException(KeystoreException): pass
+class KeystoreException(Exception):
+    """Superclass for all pyjks exceptions."""
+    pass
+class KeystoreSignatureException(KeystoreException):
+    """Signifies that the supplied password for a keystore integrity check is incorrect."""
+    pass
+class DuplicateAliasException(KeystoreException):
+    """Signifies that duplicate aliases were encountered in a keystore."""
+    pass
+class NotYetDecryptedException(KeystoreException):
+    """
+    Signifies that an attribute of a key store entry can not be accessed because the entry has not yet been decrypted.
+
+    By default, the keystore ``load`` and ``loads`` methods automatically try to decrypt all key entries using the store password.
+    Any keys for which that attempt fails are returned undecrypted, and will raise this exception when its attributes are accessed.
+
+    To resolve, first call decrypt() with the correct password on the entry object whose attributes you want to access.
+    """
+    pass
+class BadKeystoreFormatException(KeystoreException):
+    """Signifies that a structural error was encountered during key store parsing."""
+    pass
+class BadDataLengthException(KeystoreException):
+    """Signifies that given input data was of wrong or unexpected length."""
+    pass
+class BadPaddingException(KeystoreException):
+    """Signifies that bad padding was encountered during decryption."""
+    pass
+class BadHashCheckException(KeystoreException):
+    """Signifies that a hash computation did not match an expected value."""
+    pass
+class DecryptionFailureException(KeystoreException):
+    """Signifies failure to decrypt a value."""
+    pass
+class UnsupportedKeystoreVersionException(KeystoreException):
+    """Signifies an unexpected or unsupported keystore format version."""
+    pass
+class UnexpectedJavaTypeException(KeystoreException):
+    """Signifies that a serialized Java object of unexpected type was encountered."""
+    pass
+class UnexpectedAlgorithmException(KeystoreException):
+    """Signifies that an unexpected cryptographic algorithm was used in a keystore."""
+    pass
+class UnexpectedKeyEncodingException(KeystoreException):
+    """Signifies that a key was stored in an unexpected format or encoding."""
+    pass
 
 class AbstractKeystoreEntry(object):
+    """Abstract superclass for keystore entries."""
     def __init__(self, **kwargs):
         super(AbstractKeystoreEntry, self).__init__()
         self.store_type = kwargs.get("store_type")
