@@ -78,10 +78,11 @@ public class PyJksTestCase
 	}
 
 	/**
-	 * Creates a Python source file at the given location which defines two variables, 'private_key' and 'certs',
-	 * containing byte strings with the encoded form of the given PrivateKey and certificates.
+	 * Creates a Python source file at the given location which defines three variables 'public_key', 'private_key'
+	 * and 'certs', containing byte strings with the encoded form of the given keypair and certificates.
 	 *
-	 * The 'private_key' variable contains a byte string with the PKCS#8 representation of the given PrivateKey.
+	 * The 'public_key' variable contains a byte string with the X.509 SubjectPublicKeyInfo representation of the public key.
+	 * The 'private_key' variable contains a byte string with the PKCS#8 representation of the private key.
 	 * The 'certs' variable contains a list with the X.509 DER representation of each given certificate in order.
 	 *
 	 * The main purpose of this method is to be able to avoid having to include these large byte strings into the test
@@ -91,14 +92,18 @@ public class PyJksTestCase
 	 * expected.mytestcase.private_key and expected.mytestcase.certs to access the expected values that should be found
 	 * after decoding that test's keystore.
 	 */
-	protected void writePythonDataFile(String filename, PrivateKey privateKey, Certificate[] certs) throws Exception
+	protected void writePythonDataFile(String filename, KeyPair keyPair, Certificate[] certs) throws Exception
 	{
-		String keyPadding = "              ";
-		String certsPadding = "         ";
+		String privateKeyPadding = StringUtils.repeat(" ", "private_key = ".length());
+		String publicKeyPadding  = StringUtils.repeat(" ", "public_key = ".length());
+		String certsPadding      = StringUtils.repeat(" ", "certs = [".length());
 
 		StringBuffer sb = new StringBuffer();
+		sb.append("public_key = ");
+		sb.append(StringUtils.stripStart(toPythonString(keyPair.getPublic().getEncoded(), 32, publicKeyPadding), null));
+		sb.append("\n");
 		sb.append("private_key = ");
-		sb.append(StringUtils.stripStart(toPythonString(privateKey.getEncoded(), 32, keyPadding), null));
+		sb.append(StringUtils.stripStart(toPythonString(keyPair.getPrivate().getEncoded(), 32, privateKeyPadding), null));
 		sb.append("\n");
 		sb.append("certs = [");
 		for (int i = 0; i < certs.length; i++)
@@ -108,9 +113,8 @@ public class PyJksTestCase
 			sb.append(toAppend);
 			sb.append(i < certs.length - 1 ? ",\n" : "");
 		}
-		sb.append("]");
+		sb.append("]\n");
 
-		// FileUtils.writeStringToFile takes care of creating any intermediate directories, no need to do that manually
 		FileUtils.writeStringToFile(new File(filename), sb.toString());
 	}
 
@@ -368,21 +372,21 @@ public class PyJksTestCase
 		return bos.toByteArray();
 	}
 
-	protected Cipher getPBEWithMD5AndTripleDESCipher(String password, byte[] salt, int iterationCount) throws Exception
+	protected Cipher makePBECipher(String algorithm, int mode, String password, byte[] salt, int iterationCount) throws Exception
 	{
-		// encrypt the enclosed serialized object with PBEWithMD5AndTripleDES, as the Sun JCE key store implementation does
-		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, iterationCount);
 		PBEKeySpec pbeKeySpec = new PBEKeySpec(password.toCharArray());
-		SecretKey pbeKey = SecretKeyFactory.getInstance("PBEWithMD5AndTripleDES").generateSecret(pbeKeySpec);
+		PBEParameterSpec pbeParamSpec = new PBEParameterSpec(salt, iterationCount);
+		SecretKey pbeKey = SecretKeyFactory.getInstance(algorithm).generateSecret(pbeKeySpec);
 
-		Cipher cipher = Cipher.getInstance("PBEWithMD5AndTripleDES");
-		cipher.init(Cipher.ENCRYPT_MODE, pbeKey, pbeParamSpec);
+		Cipher cipher = Cipher.getInstance(algorithm);
+		cipher.init(mode, pbeKey, pbeParamSpec);
 		return cipher;
+
 	}
 
 	protected byte[] encryptPBEWithMD5AndTripleDES(byte[] input, String password, byte[] salt, int iterationCount) throws Exception
 	{
-		Cipher c = getPBEWithMD5AndTripleDESCipher(password, salt, iterationCount);
+		Cipher c = makePBECipher("PBEWithMD5AndTripleDES", Cipher.ENCRYPT_MODE, password, salt, iterationCount);
 		return c.doFinal(input);
 	}
 
