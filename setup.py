@@ -56,3 +56,18 @@ setup(
                       'twofish'],
     test_suite="tests.test_jks",
 )
+
+
+"""
+Releasing:
+
+* Update version in setup.py
+* Update __version__ and __version_info__ in jks.py
+* Final test (currently, py.test)
+* Commit: "bumping version for x.x.x release"
+* Run: python setup.py sdist upload
+* git tag -a x.x.x -m "summary"
+* Update CHANGELOG
+* Commit: "bumping version for x.x.x+1 dev"
+* git push && git push --tags
+"""
