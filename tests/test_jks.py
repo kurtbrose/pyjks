@@ -67,6 +67,15 @@ class JksTests(AbstractTest):
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00", "") # insufficient store version bytes
         self.assertRaises(jks.util.UnsupportedKeystoreVersionException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00\x00\x00\x00", "") # unknown store version
         self.assertRaises(jks.util.KeystoreSignatureException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00\x00\x00\x02\x00\x00\x00\x00" + b"\x00"*20, "") # bad signature
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00\x00\x00\x02\x00\x00\x00\x00" + b"\x00"*19, "") # insufficient signature bytes
+
+    def test_trailing_data(self):
+        """Issue #21 on github; Portecle is able to load keystores with trailing data after the hash, so we should be as well."""
+        store_bytes = None
+        with open("tests/keystores/jks/RSA1024.jks", "rb") as f:
+            store_bytes = f.read()
+        store = jks.KeyStore.loads(store_bytes + b"\x00"*1,    "12345678")
+        store = jks.KeyStore.loads(store_bytes + b"\x00"*1000, "12345678")
 
     def test_rsa_1024(self):
         store = jks.KeyStore.load("tests/keystores/jks/RSA1024.jks", "12345678")
@@ -134,6 +143,15 @@ class JceTests(AbstractTest):
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\xCE\xCE\xCE\xCE\x00", "") # insufficient store version bytes
         self.assertRaises(jks.util.UnsupportedKeystoreVersionException, jks.KeyStore.loads, b"\xCE\xCE\xCE\xCE\x00\x00\x00\x00", "") # unknown store version
         self.assertRaises(jks.util.KeystoreSignatureException, jks.KeyStore.loads, b"\xCE\xCE\xCE\xCE\x00\x00\x00\x02\x00\x00\x00\x00" + b"\x00"*20, "") # bad signature
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\xCE\xCE\xCE\xCE\x00\x00\x00\x02\x00\x00\x00\x00" + b"\x00"*19, "") # insufficient signature bytes
+
+    def test_trailing_data(self):
+        """Issue #21 on github; Portecle is able to load keystores with trailing data after the hash, so we should be as well."""
+        store_bytes = None
+        with open("tests/keystores/jceks/RSA1024.jceks", "rb") as f:
+            store_bytes = f.read()
+        store = jks.KeyStore.loads(store_bytes + b"\x00"*1,    "12345678")
+        store = jks.KeyStore.loads(store_bytes + b"\x00"*1000, "12345678")
 
     def test_rsa_1024(self):
         store = jks.KeyStore.load("tests/keystores/jceks/RSA1024.jceks", "12345678")
@@ -307,6 +325,7 @@ class BksOnlyTests(AbstractTest):
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00", "") # insufficient store version bytes
         self.assertRaises(jks.util.UnsupportedKeystoreVersionException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x00" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # unknown store version
         self.assertRaises(jks.util.KeystoreSignatureException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x02" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # bad HMAC
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x02" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*19), "") # insufficient HMAC bytes
 
     def test_bad_uber_keystore_format(self):
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.UberKeyStore.loads, b"\x00\x00\x00", "") # insufficient store version bytes
@@ -319,6 +338,12 @@ class BksOnlyTests(AbstractTest):
             b"\x00\x00\x00\x08" + salt + \
             b"\x00\x00\x00\x14" + \
             jks.rfc7292.encrypt_PBEWithSHAAndTwofishCBC(b"\00"*20, password, salt, 0x14), password) # 0-byte embedded BKS keystore + bad SHA-1 hash of that 0-byte store
+
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.UberKeyStore.loads,
+            b"\x00\x00\x00\x01" + \
+            b"\x00\x00\x00\x08" + salt + \
+            b"\x00\x00\x00\x14" + \
+            jks.rfc7292.encrypt_PBEWithSHAAndTwofishCBC(b"\x00" + b"\00"*10, password, salt, 0x14), password) # insufficient signature bytes
 
     def test_christmas_store_v1(self):
         store = jks.bks.BksKeyStore.load("tests/keystores/bks/christmas.bksv1", "12345678")
@@ -423,6 +448,33 @@ class BksOnlyTests(AbstractTest):
         sealed_secret.decrypt("secret_password")
         self.assertTrue(sealed_secret.is_decrypted())
         for a in attrs_encrypted_secret: getattr(sealed_secret, a) # shouldn't throw
+
+    def test_trailing_data_v1(self):
+        """Issue #21 on github; Portecle is able to load keystores with trailing data after the HMAC signature, so we should be as well."""
+        christmas_store_bytes = None
+        with open("tests/keystores/bks/christmas.bksv1", "rb") as f:
+            christmas_store_bytes = f.read()
+        store = jks.bks.BksKeyStore.loads(christmas_store_bytes + b"\x00"*1,    "12345678")
+        store = jks.bks.BksKeyStore.loads(christmas_store_bytes + b"\x00"*1000, "12345678")
+        self._test_christmas_store(store, "bks")
+
+    def test_trailing_data_v2(self):
+        """Issue #21 on github; Portecle is able to load keystores with trailing data after the HMAC signature, so we should be as well."""
+        christmas_store_bytes = None
+        with open("tests/keystores/bks/christmas.bksv2", "rb") as f:
+            christmas_store_bytes = f.read()
+        store = jks.bks.BksKeyStore.loads(christmas_store_bytes + b"\x00"*1,    "12345678")
+        store = jks.bks.BksKeyStore.loads(christmas_store_bytes + b"\x00"*1000, "12345678")
+        self._test_christmas_store(store, "bks")
+
+    def test_trailing_data_uber(self):
+        # Note: trailing data in an UBER keystore should always be a fatal error because there is no way to distinguish
+        # the trailing data from the encrypted store blob in advance.
+        christmas_store_bytes = None
+        with open("tests/keystores/uber/christmas.uber", "rb") as f:
+            christmas_store_bytes = f.read()
+        self.assertRaises(jks.util.DecryptionFailureException, jks.bks.UberKeyStore.loads, christmas_store_bytes + b"\x00"*256, "12345678") # maintain multiple of 16B -> decryption failure
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.UberKeyStore.loads, christmas_store_bytes + b"\x00"*255, "12345678") # break multiple of 16B -> bad format
 
 
 class MiscTests(AbstractTest):
