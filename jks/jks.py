@@ -295,11 +295,9 @@ class KeyStore(object):
             entry_count = b4.unpack_from(data, 8)[0]
             pos = 12
             for i in range(entry_count):
-                tag = b4.unpack_from(data, pos)[0]
-                pos += 4
-                alias, pos = cls._read_utf(data, pos)
-                timestamp = int(b8.unpack_from(data, pos)[0])  # msecs since epoch
-                pos += 8
+                tag = b4.unpack_from(data, pos)[0]; pos += 4
+                alias, pos = cls._read_utf(data, pos, kind="entry alias")
+                timestamp = int(b8.unpack_from(data, pos)[0]); pos += 8 # milliseconds since UNIX epoch
 
                 if tag == 1:
                     entry, pos = cls._read_private_key(data, pos, store_type)
@@ -347,7 +345,7 @@ class KeyStore(object):
 
     @classmethod
     def _read_trusted_cert(cls, data, pos, store_type):
-        cert_type, pos = cls._read_utf(data, pos)
+        cert_type, pos = cls._read_utf(data, pos, kind="certificate type")
         cert_data, pos = cls._read_data(data, pos)
         entry = TrustedCertEntry(type=cert_type, cert=cert_data, store_type=store_type)
         return entry, pos
@@ -360,7 +358,7 @@ class KeyStore(object):
 
         cert_chain = []
         for j in range(chain_len):
-            cert_type, pos = cls._read_utf(data, pos)
+            cert_type, pos = cls._read_utf(data, pos, kind="certificate type")
             cert_data, pos = cls._read_data(data, pos)
             cert_chain.append((cert_type, cert_data))
 
@@ -420,10 +418,18 @@ class KeyStore(object):
 
 
     @classmethod
-    def _read_utf(cls, data, pos):
+    def _read_utf(cls, data, pos, kind=None):
+        """
+        :param kind: Optional; a human-friendly identifier for the kind of UTF-8 data we're loading (e.g. is it a keystore alias? an algorithm identifier? something else?).
+                     Used to construct more informative exception messages when a decoding error occurs.
+        """
         size = b2.unpack_from(data, pos)[0]
         pos += 2
-        return data[pos:pos+size].decode('utf-8'), pos+size
+        try:
+            return data[pos:pos+size].decode('utf-8'), pos+size
+        except (UnicodeEncodeError, UnicodeDecodeError) as e:
+            raise BadKeystoreFormatException(("Failed to read %s, contains bad UTF-8 data: %s" % (kind, str(e))) if kind else \
+                                             ("Encountered bad UTF-8 data: %s" % str(e)))
 
     @classmethod
     def _read_data(cls, data, pos):
