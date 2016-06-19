@@ -323,13 +323,13 @@ class BksOnlyTests(AbstractTest):
 
     def test_bad_bks_keystore_format(self):
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00", "") # insufficient store version bytes
-        self.assertRaises(jks.util.UnsupportedKeystoreVersionException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x00" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # unknown store version
-        self.assertRaises(jks.util.KeystoreSignatureException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x02" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # bad HMAC
-        self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x02" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*19), "") # insufficient HMAC bytes
+        self.assertRaises(jks.util.UnsupportedKeystoreVersionException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x00" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + b"\x00" + (b"\x00"*20), "") # unknown store version
+        self.assertRaises(jks.util.KeystoreSignatureException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x02" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + b"\x00" + (b"\x00"*20), "") # bad HMAC
+        self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.BksKeyStore.loads, b"\x00\x00\x00\x02" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + b"\x00" + (b"\x00"*19), "") # insufficient HMAC bytes
 
     def test_bad_uber_keystore_format(self):
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.UberKeyStore.loads, b"\x00\x00\x00", "") # insufficient store version bytes
-        self.assertRaises(jks.util.UnsupportedKeystoreVersionException, jks.bks.UberKeyStore.loads, b"\x00\x00\x00\x00" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14" + (b"\x00"*20), "") # unknown store version
+        self.assertRaises(jks.util.UnsupportedKeystoreVersionException, jks.bks.UberKeyStore.loads, b"\x00\x00\x00\x00" + b"\x00\x00\x00\x08" + (b"\xFF"*8) + b"\x00\x00\x00\x14", "") # unknown store version
 
         password = ""
         salt = b"\xFF"*8
@@ -337,7 +337,7 @@ class BksOnlyTests(AbstractTest):
             b"\x00\x00\x00\x01" + \
             b"\x00\x00\x00\x08" + salt + \
             b"\x00\x00\x00\x14" + \
-            jks.rfc7292.encrypt_PBEWithSHAAndTwofishCBC(b"\00"*20, password, salt, 0x14), password) # 0-byte embedded BKS keystore + bad SHA-1 hash of that 0-byte store
+            jks.rfc7292.encrypt_PBEWithSHAAndTwofishCBC(b"\x00" + b"\00"*20, password, salt, 0x14), password) # empty embedded BKS entries + bad SHA-1 hash of that 0-byte store
 
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.bks.UberKeyStore.loads,
             b"\x00\x00\x00\x01" + \
