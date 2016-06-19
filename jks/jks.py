@@ -280,10 +280,17 @@ class KeyStore(object):
         except struct.error as e:
             raise BadKeystoreFormatException(e)
 
-        # the keystore integrity check uses the UTF-16BE encoding of the password
+        # check keystore integrity (uses UTF-16BE encoding of the password)
+        hash_fn = hashlib.sha1
+        hash_digest_size = hash_fn().digest_size
+
         store_password_utf16 = store_password.encode('utf-16be')
-        expected_hash = hashlib.sha1(store_password_utf16 + SIGNATURE_WHITENING + data[:pos]).digest()
-        if expected_hash != data[pos:]:
+        expected_hash = hash_fn(store_password_utf16 + SIGNATURE_WHITENING + data[:pos]).digest()
+        found_hash = data[pos:pos+hash_digest_size]
+
+        if len(found_hash) != hash_digest_size:
+            raise BadKeystoreFormatException("Bad signature size; found %d bytes, expected %d bytes" % (len(found_hash), hash_digest_size))
+        if expected_hash != found_hash:
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
         return cls(store_type, entries)

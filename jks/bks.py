@@ -221,13 +221,18 @@ class BksKeyStore(KeyStore):
             salt, pos = cls._read_data(data, pos)
             iteration_count = b4.unpack_from(data, pos)[0]; pos += 4
 
-            store_data = data[pos:-20]
-            store_hmac = data[-20:]
+            store_type = "bks"
+            entries, size = cls._load_bks_entries(data[pos:], store_type, store_password, try_decrypt_keys=try_decrypt_keys)
 
             hmac_fn = hashlib.sha1
-            hmac_key_size = hmac_fn().digest_size
-            hmac_key_size = hmac_key_size*8 if version != 1 else hmac_key_size
+            hmac_digest_size = hmac_fn().digest_size
+            hmac_key_size = hmac_digest_size*8 if version != 1 else hmac_digest_size
             hmac_key = rfc7292.derive_key(hmac_fn, rfc7292.PURPOSE_MAC_MATERIAL, store_password, salt, iteration_count, hmac_key_size//8)
+
+            store_data = data[pos:pos+size]
+            store_hmac = data[pos+size:pos+size+hmac_digest_size]
+            if len(store_hmac) != hmac_digest_size:
+                raise BadKeystoreFormatException("Bad HMAC size; found %d bytes, expected %d bytes" % (len(store_hmac), hmac_digest_size))
 
             hmac = HMAC.new(hmac_key, digestmod=SHA)
             hmac.update(store_data)
@@ -235,9 +240,6 @@ class BksKeyStore(KeyStore):
             computed_hmac = hmac.digest()
             if store_hmac != computed_hmac:
                 raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
-
-            store_type = "bks"
-            entries = cls._load_bks_entries(store_data, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
             return cls(store_type, entries)
 
         except struct.error as e:
@@ -286,7 +288,7 @@ class BksKeyStore(KeyStore):
                 raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
             entries[alias] = entry
 
-        return entries
+        return (entries, pos)
 
     @classmethod
     def _read_bks_cert(cls, data, pos, store_type):
@@ -349,14 +351,21 @@ class UberKeyStore(BksKeyStore):
             except BadPaddingException as e:
                 raise DecryptionFailureException("Failed to decrypt UBER keystore: bad password?")
 
-            bks_store = decrypted[:-20]
-            bks_hash  = decrypted[-20:]
+            # Note: we can assume that the hash must be present at the last 20 bytes of the decrypted data (i.e. without first
+            # parsing through to see where the entry data actually ends), because valid UBER keystores generators should not put
+            # any trailing bytes after the hash prior to encrypting.
+            hash_fn = hashlib.sha1
+            hash_digest_size = hash_fn().digest_size
 
-            if hashlib.sha1(bks_store).digest() != bks_hash:
+            bks_store = decrypted[:-hash_digest_size]
+            bks_hash  = decrypted[-hash_digest_size:]
+            if len(bks_hash) != hash_digest_size:
+                raise BadKeystoreFormatException("Insufficient signature bytes; found %d bytes, expected %d bytes" % (len(bks_hash), hash_digest_size))
+            if hash_fn(bks_store).digest() != bks_hash:
                 raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
             store_type = "uber"
-            entries = cls._load_bks_entries(bks_store, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
+            entries, size = cls._load_bks_entries(bks_store, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
             return cls(store_type, entries)
 
         except struct.error as e:

@@ -29,7 +29,7 @@ def derive_key(hashfn, purpose_byte, password_str, salt, iteration_count, desire
     purpose:           "purpose byte", signifies the purpose of the generated pseudorandom key material
     desired_key_size:  desired amount of bytes of key material to generate
     """
-    password_bytes = password_str.encode('utf-16be') + b"\x00\x00"
+    password_bytes = (password_str.encode('utf-16be') + b"\x00\x00") if len(password_str) > 0 else b""
     u = hashfn().digest_size # in bytes
     v = hashfn().block_size  # in bytes
 
