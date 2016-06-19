@@ -5,6 +5,8 @@ Since August 14, 2013 there have been 2 releases and 107 commits.
 v0.5.0
 ------
 
+*(June 19, 2016)*
+
 Support more keystore formats and fix a couple issues.
 
 * Support for [Bouncy Castle][bc] BKS and UBER keystores.
@@ -17,6 +19,8 @@ Support more keystore formats and fix a couple issues.
 
 v0.4.0
 ------
+
+*(May 4, 2016)*
 
 First public beta release, complete with support for Sun JKS/JCE, on
 both Python 2 and 3.
