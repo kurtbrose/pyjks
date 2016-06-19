@@ -28,8 +28,8 @@ try:
 except ImportError:
     from io import BytesIO # python3
 
-__version_info__ = (0,4,0)
-__version__ = ".".join(str(x) for x in __version_info__)
+__version_info__ = (0, 5, 0, '')
+__version__ = ".".join(str(x) for x in __version_info__ if str(x))
 
 MAGIC_NUMBER_JKS = b4.pack(0xFEEDFEED)
 MAGIC_NUMBER_JCEKS = b4.pack(0xCECECECE)
@@ -397,4 +397,3 @@ class KeyStore(object):
         as another Python int (now remapped to the range [0, 255]), and use struct.pack() to create the matching byte string.
         """
         return struct.pack("%dB" % len(java_byte_list), *[ctypes.c_ubyte(sb).value for sb in java_byte_list])
-

@@ -1,6 +1,6 @@
 """PyJKS enables Python projects to load and manipulate Java KeyStore
-(JKS) data without a JVM dependency. PyJKS supports JKS, JCEKS, BKS and UBER (BouncyCastle) keystores.
-Simply::
+(JKS) data without a JVM dependency. PyJKS supports JKS, JCEKS, BKS
+and UBER (BouncyCastle) keystores. Simply::
 
   pip install pyjks
 
@@ -18,18 +18,18 @@ Then::
   print(ks.certs)
   print(ks.secret_keys)
 
-Of course PyJKS can do much more. Check out `the usage examples on
+And that's barely scratching the surface. Check out `the usage examples on
 GitHub <https://github.com/doublereedkurt/pyjks#usage-examples>`_ for
 more!
+
 """
 
-import os
 from setuptools import setup, find_packages
 
 
 setup(
     name='pyjks',
-    version='0.4.1dev',
+    version='0.5.0',
     author="Kurt Rose, Jeroen De Ridder",
     author_email="kurt@kurtrose.com",
     description='Pure-Python Java Keystore (JKS) library',
