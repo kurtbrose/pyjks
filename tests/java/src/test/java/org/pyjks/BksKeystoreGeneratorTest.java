@@ -65,6 +65,10 @@ public class BksKeystoreGeneratorTest extends PyJksTestCase
 		int KEY = PKCS12ParametersGenerator.KEY_MATERIAL;
 		int IV = PKCS12ParametersGenerator.IV_MATERIAL;
 
+		System.out.println(toPythonString(generatePkcs12DerivedKey(new SHA1Digest(), MAC, "", new byte[]{1,2,3,4,5,6,7,8}, 1000, 16)));
+		System.out.println(toPythonString(generatePkcs12DerivedKey(new SHA1Digest(), MAC, "", new byte[]{1,2,3,4,5,6,7,8}, 1000, 17)));
+		System.out.println(toPythonString(generatePkcs12DerivedKey(new SHA1Digest(), KEY, "", new byte[]{-65,10,-86,79,-124,-76,78,65,22,10,17,-73,-19,-104,88,-96,-107,59,75,-8}, 2010, 2)));
+
 		System.out.println(toPythonString(generatePkcs12DerivedKey(new SHA1Digest(), MAC, "password", new byte[]{1,2,3,4,5,6,7,8}, 1000, 16)));
 
 		System.out.println(toPythonString(generatePkcs12DerivedKey(new SHA1Digest(), MAC, "password", new byte[]{1,2,3,4,5,6,7,8}, 1000, 17)));
@@ -196,6 +200,27 @@ public class BksKeystoreGeneratorTest extends PyJksTestCase
 
 		Hashtable entryTable = (Hashtable) FieldUtils.readField(bcSpi, "table", true);
 		entryTable.put(alias, storeEntry);
+	}
+
+	@Test
+	public void bks_empty() throws Exception
+	{
+		Security.insertProviderAt(new BouncyCastleProvider(), 1);
+		try
+		{
+			generateKeyStore("BKS-V1", "../keystores/bks/empty.bksv1", null, null, "");
+			generateKeyStore("BKS",    "../keystores/bks/empty.bksv2", null, null, "");
+			generateKeyStore("UBER",   "../keystores/uber/empty.uber", null, null, "");
+		}
+		catch (Exception e)
+		{
+			System.err.println(e.getMessage());
+			throw e;
+		}
+		finally
+		{
+			Security.removeProvider(BouncyCastleProvider.PROVIDER_NAME);
+		}
 	}
 
 	/**

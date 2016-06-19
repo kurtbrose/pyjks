@@ -345,6 +345,13 @@ class BksOnlyTests(AbstractTest):
             b"\x00\x00\x00\x14" + \
             jks.rfc7292.encrypt_PBEWithSHAAndTwofishCBC(b"\x00" + b"\00"*10, password, salt, 0x14), password) # insufficient signature bytes
 
+    def test_empty_store_v1(self):
+        store = jks.bks.BksKeyStore.load("tests/keystores/bks/empty.bksv1", "")
+    def test_empty_store_v2(self):
+        store = jks.bks.BksKeyStore.load("tests/keystores/bks/empty.bksv2", "")
+    def test_empty_store_uber(self):
+        store = jks.bks.UberKeyStore.load("tests/keystores/uber/empty.uber", "")
+
     def test_christmas_store_v1(self):
         store = jks.bks.BksKeyStore.load("tests/keystores/bks/christmas.bksv1", "12345678")
         self._test_christmas_store(store, "bks")
@@ -512,6 +519,10 @@ class MiscTests(AbstractTest):
         self.assertEqual(b"sample", jks.sun_crypto.jce_pbe_decrypt(b"\x72\x8f\xd8\xcc\x21\x41\x25\x80", "my_password", b"\x01\x02\x03\x04\x01\x02\x03\x04", 42))
 
     def test_pkcs12_key_derivation(self):
+        self.assertEqual(jks.rfc7292.derive_key(hashlib.sha1, jks.rfc7292.PURPOSE_MAC_MATERIAL, "", b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000, 16), b"\xe7\x76\x85\x01\x6a\x53\x62\x1e\x9a\x2a\x8a\x0f\x80\x00\x2e\x70")
+        self.assertEqual(jks.rfc7292.derive_key(hashlib.sha1, jks.rfc7292.PURPOSE_MAC_MATERIAL, "", b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000, 17), b"\xe7\x76\x85\x01\x6a\x53\x62\x1e\x9a\x2a\x8a\x0f\x80\x00\x2e\x70\xfe")
+        self.assertEqual(jks.rfc7292.derive_key(hashlib.sha1, jks.rfc7292.PURPOSE_KEY_MATERIAL, "", b"\xbf\x0a\xaa\x4f\x84\xb4\x4e\x41\x16\x0a\x11\xb7\xed\x98\x58\xa0\x95\x3b\x4b\xf8", 2010, 2), b"\x1b\xee")
+
         self.assertEqual(jks.rfc7292.derive_key(hashlib.sha1, jks.rfc7292.PURPOSE_MAC_MATERIAL, "password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000, 0), b"")
         self.assertEqual(jks.rfc7292.derive_key(hashlib.sha1, jks.rfc7292.PURPOSE_MAC_MATERIAL, "password", b"\x01\x02\x03\x04\x05\x06\x07\x08", 1000, 16), b"\x21\x2b\xab\x71\x42\x2d\x31\xa5\xd3\x93\x4c\x20\xe5\xe7\x7e\xb7")
 
