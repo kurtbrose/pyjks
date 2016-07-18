@@ -298,7 +298,7 @@ class KeyStore(object):
                 tag = b4.unpack_from(data, pos)[0]
                 pos += 4
                 alias, pos = cls._read_utf(data, pos)
-                timestamp = b8.unpack_from(data, pos)[0]  # msecs since epoch
+                timestamp = int(b8.unpack_from(data, pos)[0])  # msecs since epoch
                 pos += 8
 
                 if tag == 1:

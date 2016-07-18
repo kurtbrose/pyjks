@@ -259,7 +259,7 @@ class BksKeyStore(KeyStore):
                 break
 
             alias, pos = cls._read_utf(data, pos)
-            timestamp = b8.unpack_from(data, pos)[0]; pos += 8
+            timestamp = int(b8.unpack_from(data, pos)[0]); pos += 8
             chain_length = b4.unpack_from(data, pos)[0]; pos += 4
 
             cert_chain = []
