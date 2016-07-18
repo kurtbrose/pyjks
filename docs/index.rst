@@ -20,7 +20,7 @@ context using a JKS through PyJKS::
   import jks
   import OpenSSL
 
-  _ASN1 = OpenSSL.crypto.FILETYPE_ASN1
+  ASN1 = OpenSSL.crypto.FILETYPE_ASN1
 
   def jksfile2context(jks_file, passphrase, key_alias, key_password=None):
 
@@ -33,9 +33,9 @@ context using a JKS through PyJKS::
       if not pk_entry.is_decrypted():
           pk_entry.decrypt(key_password)
 
-      pkey = OpenSSL.crypto.load_privatekey(_ASN1, pk_entry.pkey)
-      public_cert = OpenSSL.crypto.load_certificate(_ASN1, pk_entry.cert_chain[0][1])
-      trusted_certs = [OpenSSL.crypto.load_certificate(_ASN1, cert.cert)
+      pkey = OpenSSL.crypto.load_privatekey(ASN1, pk_entry.pkey)
+      public_cert = OpenSSL.crypto.load_certificate(ASN1, pk_entry.cert_chain[0][1])
+      trusted_certs = [OpenSSL.crypto.load_certificate(ASN1, cert.cert)
                        for alias, cert in keystore.certs]
 
       ctx = OpenSSL.SSL.Context(OpenSSL.SSL.TLSv1_METHOD)
@@ -50,8 +50,6 @@ context using a JKS through PyJKS::
 
 And that's just the beginning! Take a look at PyJKS's always-expanding
 API for more possibilities.
-
-
 
 Contents:
 

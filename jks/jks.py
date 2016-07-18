@@ -1,17 +1,30 @@
 # vim: set et ai ts=4 sts=4 sw=4:
-"""
-JKS/JCEKS file format decoder.
-Use in conjunction with PyOpenSSL to translate to PEM, or load private key and certs directly into openssl structs and wrap sockets.
+"""JKS/JCEKS file format decoder.  Use in conjunction with PyOpenSSL
+to translate to PEM, or load private key and certs directly into
+openssl structs and wrap sockets.
 
 Notes on Python2/3 compatibility:
-  - Whereever possible, we rely on the 'natural' byte string representation of each Python version, i.e. 'str' in Python2 and 'bytes' in Python3.
-    Python2.6+ aliases the 'bytes' type to 'str', so we can universally write bytes(...) or b"" to get each version's natural byte string representation.
-    The libraries we interact with are written to expect these natural types in their respective Py2/Py3 versions, so this works well.
 
-    Things get slightly more complicated when we need to manipulate individual bytes from a byte string. str[x] returns a 'str' in Python2 and an
-    'int' in Python3. You can't do 'int' operations on a 'str' and vice-versa, so we need some form of common data type.
-    We use bytearray() for this purpose; in both Python2 and Python3, this will return individual elements as an 'int'.
+Whereever possible, we rely on the 'natural' byte string
+representation of each Python version, i.e. 'str' in Python2 and
+'bytes' in Python3.
+
+Python2.6+ aliases the 'bytes' type to 'str', so we can universally
+write bytes(...) or b"" to get each version's natural byte string
+representation.
+
+The libraries we interact with are written to expect these natural
+types in their respective Py2/Py3 versions, so this works well.
+
+Things get slightly more complicated when we need to manipulate
+individual bytes from a byte string. str[x] returns a 'str' in Python2
+and an 'int' in Python3. You can't do 'int' operations on a 'str' and
+vice-versa, so we need some form of common data type.  We use
+bytearray() for this purpose; in both Python2 and Python3, this will
+return individual elements as an 'int'.
+
 """
+
 from __future__ import print_function
 import struct
 import ctypes
@@ -24,9 +37,9 @@ from . import sun_crypto
 from .util import *
 
 try:
-    from StringIO import StringIO as BytesIO # python 2
+    from StringIO import StringIO as BytesIO  # python 2
 except ImportError:
-    from io import BytesIO # python3
+    from io import BytesIO  # python3
 
 __version_info__ = (0, 5, 1, 'dev')
 __version__ = ".".join(str(x) for x in __version_info__ if str(x))
@@ -34,6 +47,7 @@ __version__ = ".".join(str(x) for x in __version_info__ if str(x))
 MAGIC_NUMBER_JKS = b4.pack(0xFEEDFEED)
 MAGIC_NUMBER_JCEKS = b4.pack(0xCECECECE)
 SIGNATURE_WHITENING = b"Mighty Aphrodite"
+
 
 class TrustedCertEntry(AbstractKeystoreEntry):
     def __init__(self, **kwargs):
@@ -45,6 +59,7 @@ class TrustedCertEntry(AbstractKeystoreEntry):
         return True
     def decrypt(self, password):
         return
+
 
 class PrivateKeyEntry(AbstractKeystoreEntry):
     def __init__(self, **kwargs):
@@ -125,7 +140,9 @@ class SecretKeyEntry(AbstractKeystoreEntry):
         plaintext = None
         sealed_obj = self._encrypted
         if sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
-            # if the object was sealed with PBEWithMD5AndTripleDES then the parameters should apply to the same algorithm and not be empty or null
+            # if the object was sealed with PBEWithMD5AndTripleDES
+            # then the parameters should apply to the same algorithm
+            # and not be empty or null
             if sealed_obj.paramsAlg != sealed_obj.sealAlg:
                 raise UnexpectedAlgorithmException("Unexpected parameters algorithm used in SealedObject; should match sealing algorithm '%s' but found '%s'" % (sealed_obj.sealAlg, sealed_obj.paramsAlg))
             if sealed_obj.encodedParams is None or len(sealed_obj.encodedParams) == 0:
@@ -141,13 +158,20 @@ class SecretKeyEntry(AbstractKeystoreEntry):
         else:
             raise UnexpectedAlgorithmException("Unexpected algorithm used for encrypting SealedObject: sealAlg=%s" % sealed_obj.sealAlg)
 
-        # The plaintext here is another serialized Java object; this time it's an object implementing the javax.crypto.SecretKey interface.
-        # When using the default SunJCE provider, these are usually either javax.crypto.spec.SecretKeySpec objects, or some other specialized ones
-        # like those found in the com.sun.crypto.provider package (e.g. DESKey and DESedeKey).
+        # The plaintext here is another serialized Java object; this
+        # time it's an object implementing the javax.crypto.SecretKey
+        # interface.  When using the default SunJCE provider, these
+        # are usually either javax.crypto.spec.SecretKeySpec objects,
+        # or some other specialized ones like those found in the
+        # com.sun.crypto.provider package (e.g. DESKey and DESedeKey).
         #
-        # Additionally, things are further complicated by the fact that some of these specialized SecretKey implementations (i.e. other than SecretKeySpec)
-        # implement a writeReplace() method, causing Java's serialization runtime to swap out the object for a completely different one at serialization time.
-        # Again for SunJCE, the subsitute object that gets serialized is usually a java.security.KeyRep object.
+        # Additionally, things are further complicated by the fact
+        # that some of these specialized SecretKey implementations
+        # (i.e. other than SecretKeySpec) implement a writeReplace()
+        # method, causing Java's serialization runtime to swap out the
+        # object for a completely different one at serialization time.
+        # Again for SunJCE, the subsitute object that gets serialized
+        # is usually a java.security.KeyRep object.
         obj, dummy = KeyStore._read_java_obj(plaintext, 0)
         clazz = obj.get_class()
         if clazz.name == "javax.crypto.spec.SecretKeySpec":
@@ -200,28 +224,46 @@ class KeyStore(object):
 
     @classmethod
     def load(cls, filename, store_password, try_decrypt_keys=True):
-        """
-        Loads the given keystore file using the supplied password for verifying its integrity, and returns a jks.KeyStore instance.
+        """Loads the given keystore file using the supplied password for
+        verifying its integrity, and returns a jks.KeyStore instance.
 
-        Note that entries in the store that represent some form of cryptographic key material are stored in encrypted form, and
+        Note that entries in the store that represent some form of
+        cryptographic key material are stored in encrypted form, and
         therefore require decryption before becoming accessible.
 
-        Upon original creation of a key entry in a Java keystore, users are presented with the choice to either use the same password
-        as the store password, or use a custom one. The most common choice is to use the store password for the individual key entries as well.
+        Upon original creation of a key entry in a Java keystore,
+        users are presented with the choice to either use the same
+        password as the store password, or use a custom one. The most
+        common choice is to use the store password for the individual
+        key entries as well.
 
-        For ease of use in this typical scenario, this function will attempt to decrypt each key entry it encounters with the store password:
-         - If the key can be successfully decrypted with the store password, the entry is returned in its decrypted form, and its attributes
-           are immediately accessible.
-         - If the key cannot be decrypted with the store password, the entry is returned in its encrypted form, and requires a manual follow-up
-           decrypt(key_password) call from the user before its individual attributes become accessible.
+        For ease of use in this typical scenario, this function will
+        attempt to decrypt each key entry it encounters with the store
+        password:
 
-        Setting try_decrypt_keys to False disables this automatic decryption attempt, and returns all key entries in encrypted form.
+         - If the key can be successfully decrypted with the store
+           password, the entry is returned in its decrypted form, and
+           its attributes are immediately accessible.
+         - If the key cannot be decrypted with the store password, the
+           entry is returned in its encrypted form, and requires a
+           manual follow-up decrypt(key_password) call from the user
+           before its individual attributes become accessible.
 
-        You can query whether a returned entry object has already been decrypted by calling the .is_decrypted() method on it.
-        Attempting to access attributes of an entry that has not yet been decrypted will result in a NotYetDecryptedException.
+        Setting try_decrypt_keys to False disables this automatic
+        decryption attempt, and returns all key entries in encrypted
+        form.
+
+        You can query whether a returned entry object has already been
+        decrypted by calling the .is_decrypted() method on it.
+        Attempting to access attributes of an entry that has not yet
+        been decrypted will result in a NotYetDecryptedException.
         """
         with open(filename, 'rb') as file:
-            return cls.loads(file.read(), store_password, try_decrypt_keys=try_decrypt_keys)
+            input_bytes = file.read()
+            ret = cls.loads(input_bytes,
+                            store_password,
+                            try_decrypt_keys=try_decrypt_keys)
+        return ret
 
     @classmethod
     def loads(cls, data, store_password, try_decrypt_keys=True):
@@ -235,12 +277,15 @@ class KeyStore(object):
         elif magic_number == MAGIC_NUMBER_JCEKS:
             store_type = "jceks"
         else:
-            raise BadKeystoreFormatException('Not a JKS or JCEKS keystore (magic number wrong; expected FEEDFEED resp. CECECECE)')
+            raise BadKeystoreFormatException('Not a JKS or JCEKS keystore'
+                                             ' (magic number wrong; expected'
+                                             ' FEEDFEED or CECECECE)')
 
         try:
             version = b4.unpack_from(data, 4)[0]
             if version != 2:
-                raise UnsupportedKeystoreVersionException('Unsupported keystore version; only v2 supported, found v'+repr(version))
+                tmpl = 'Unsupported keystore version; expected v2, found v%r'
+                raise UnsupportedKeystoreVersionException(tmpl % version)
 
             entries = {}
 
@@ -250,7 +295,7 @@ class KeyStore(object):
                 tag = b4.unpack_from(data, pos)[0]
                 pos += 4
                 alias, pos = cls._read_utf(data, pos)
-                timestamp = b8.unpack_from(data, pos)[0] # milliseconds since UNIX epoch
+                timestamp = b8.unpack_from(data, pos)[0]  # msecs since epoch
                 pos += 8
 
                 if tag == 1:
@@ -289,7 +334,9 @@ class KeyStore(object):
         found_hash = data[pos:pos+hash_digest_size]
 
         if len(found_hash) != hash_digest_size:
-            raise BadKeystoreFormatException("Bad signature size; found %d bytes, expected %d bytes" % (len(found_hash), hash_digest_size))
+            tmpl = "Bad signature size; found %d bytes, expected %d bytes"
+            raise BadKeystoreFormatException(tmpl % (len(found_hash),
+                                                     hash_digest_size))
         if expected_hash != found_hash:
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
@@ -319,19 +366,30 @@ class KeyStore(object):
 
     @classmethod
     def _read_secret_key(cls, data, pos, store_type):
-        # SecretKeys are stored in the key store file through Java's serialization mechanism, i.e. as an actual serialized Java object
-        # embedded inside the file. The objects that get stored are not the SecretKey instances themselves though, as that would trivially
-        # expose the key without the need for a passphrase to gain access to it.
+        # SecretKeys are stored in the key store file through Java's
+        # serialization mechanism, i.e. as an actual serialized Java
+        # object embedded inside the file. The objects that get stored
+        # are not the SecretKey instances themselves though, as that
+        # would trivially expose the key without the need for a
+        # passphrase to gain access to it.
         #
-        # Instead, an object of type javax.crypto.SealedObject is written. The purpose of this class is specifically to securely
-        # serialize objects that contain secret values by applying a password-based encryption scheme to the serialized form of the object
-        # to be protected. Only the resulting ciphertext is then stored by the serialized form of the SealedObject instance.
+        # Instead, an object of type javax.crypto.SealedObject is
+        # written. The purpose of this class is specifically to
+        # securely serialize objects that contain secret values by
+        # applying a password-based encryption scheme to the
+        # serialized form of the object to be protected. Only the
+        # resulting ciphertext is then stored by the serialized form
+        # of the SealedObject instance.
         #
-        # To decrypt the SealedObject, the correct passphrase must be given to be able to decrypt the underlying object's serialized form.
-        # Once decrypted, one more de-serialization will result in the original object being restored.
+        # To decrypt the SealedObject, the correct passphrase must be
+        # given to be able to decrypt the underlying object's
+        # serialized form.  Once decrypted, one more de-serialization
+        # will result in the original object being restored.
         #
-        # The default key protector used by the SunJCE provider returns an instance of type SealedObjectForKeyProtector, a (direct)
-        # subclass of SealedObject, which uses Java's custom/unpublished PBEWithMD5AndTripleDES algorithm.
+        # The default key protector used by the SunJCE provider
+        # returns an instance of type SealedObjectForKeyProtector, a
+        # (direct) subclass of SealedObject, which uses Java's
+        # custom/unpublished PBEWithMD5AndTripleDES algorithm.
         #
         # Class member structure:
         #
@@ -380,7 +438,9 @@ class KeyStore(object):
 
     @classmethod
     def _java_is_subclass(cls, obj, class_name):
-        """Given a deserialized JavaObject as returned by the javaobj library, determine whether it's a subclass of the given class name."""
+        """Given a deserialized JavaObject as returned by the javaobj library,
+        determine whether it's a subclass of the given class name.
+        """
         clazz = obj.get_class()
         while clazz:
             if clazz.name == class_name:
@@ -390,10 +450,16 @@ class KeyStore(object):
 
     @classmethod
     def _java_bytestring(cls, java_byte_list):
+        """Convert the value returned by javaobj for a byte[] to a byte
+        string.  Java's bytes are signed and numeric (i.e. not chars),
+        so javaobj returns Java byte arrays as a list of Python
+        integers in the range [-128, 127].
+
+        For ease of use we want to get a byte string representation of
+        that, so we reinterpret each integer as an unsigned byte, take
+        its new value as another Python int (now remapped to the range
+        [0, 255]), and use struct.pack() to create the matching byte
+        string.
         """
-        Convert the value returned by javaobj for a byte[] to a byte string.
-        Java's bytes are signed and numeric (i.e. not chars), so javaobj returns Java byte arrays as a list of Python integers in the range [-128, 127].
-        For ease of use we want to get a byte string representation of that, so we reinterpret each integer as an unsigned byte, take its new value
-        as another Python int (now remapped to the range [0, 255]), and use struct.pack() to create the matching byte string.
-        """
-        return struct.pack("%dB" % len(java_byte_list), *[ctypes.c_ubyte(sb).value for sb in java_byte_list])
+        args = [ctypes.c_ubyte(sb).value for sb in java_byte_list]
+        return struct.pack("%dB" % len(java_byte_list), *args)
