@@ -3,16 +3,15 @@
 BKS file format decoder.
 """
 import struct
-import ctypes
 import hashlib
-import javaobj
 from pyasn1.codec.ber import decoder
 from pyasn1_modules import rfc5208, rfc2459
 from Crypto.Hash import HMAC, SHA
-from Crypto.Protocol.KDF import PBKDF1
-from .jks import KeyStore, TrustedCertEntry
+
 from .util import *
+from .jks import KeyStore, TrustedCertEntry
 from . import rfc7292
+
 
 ENTRY_TYPE_CERTIFICATE = 1
 ENTRY_TYPE_KEY = 2            # plaintext key entry as would otherwise be stored inside a sealed entry (type 4); no longer supported at the time of writing (BC 1.54)
