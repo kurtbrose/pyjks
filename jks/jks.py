@@ -212,15 +212,18 @@ class KeyStore(object):
 
     @property
     def certs(self):
-        return {a:e for (a,e) in self.entries.items() if isinstance(e, TrustedCertEntry)}
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, TrustedCertEntry)])
 
     @property
     def secret_keys(self):
-        return {a:e for (a,e) in self.entries.items() if isinstance(e, SecretKeyEntry)}
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, SecretKeyEntry)])
 
     @property
     def private_keys(self):
-        return {a:e for (a,e) in self.entries.items() if isinstance(e, PrivateKeyEntry)}
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, PrivateKeyEntry)])
 
     @classmethod
     def load(cls, filename, store_password, try_decrypt_keys=True):

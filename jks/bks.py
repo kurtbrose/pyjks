@@ -196,19 +196,23 @@ class BksKeyStore(KeyStore):
 
     @property
     def certs(self):
-        return {a:e for (a,e) in self.entries.items() if isinstance(e, BksTrustedCertEntry)}
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, BksTrustedCertEntry)])
 
     @property
     def secret_keys(self):
-        return {a:e for (a,e) in self.entries.items() if isinstance(e, BksSecretKeyEntry)}
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, BksSecretKeyEntry)])
 
     @property
     def sealed_keys(self):
-        return {a:e for (a,e) in self.entries.items() if isinstance(e, BksSealedKeyEntry)}
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, BksSealedKeyEntry)])
 
     @property
     def plain_keys(self):
-        return {a:e for (a,e) in self.entries.items() if isinstance(e, BksKeyEntry)}
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, BksKeyEntry)])
 
     @classmethod
     def loads(cls, data, store_password, try_decrypt_keys=True):
@@ -370,4 +374,3 @@ class UberKeyStore(BksKeyStore):
 
         except struct.error as e:
             raise BadKeystoreFormatException(e)
-
