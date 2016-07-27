@@ -2,8 +2,10 @@
 import hashlib
 from .util import *
 
-SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
-SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
+SUN_JKS_ALGO_ID = (1, 3, 6, 1, 4, 1, 42, 2, 17, 1, 1)  # JavaSoft proprietary key-protection algorithm
+SUN_JCE_ALGO_ID = (1, 3, 6, 1, 4, 1, 42, 2, 19,
+                   1)  # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
+
 
 def jks_pkey_decrypt(data, password_str):
     """
@@ -12,25 +14,27 @@ def jks_pkey_decrypt(data, password_str):
     the password is converted into bytes simply by taking each individual Java char and appending its raw 2-byte representation.
     See sun/security/provider/KeyProtector.java in the JDK sources.
     """
-    password_bytes = password_str.encode('utf-16be') # Java chars are UTF-16BE code units
+    password_bytes = password_str.encode('utf-16be')  # Java chars are UTF-16BE code units
 
     data = bytearray(data)
     iv, data, check = data[:20], data[20:-20], data[-20:]
     xoring = zip(data, _jks_keystream(iv, password_bytes))
-    key = bytearray([d^k for d,k in xoring])
+    key = bytearray([d ^ k for d, k in xoring])
 
     if hashlib.sha1(password_bytes + key).digest() != check:
         raise BadHashCheckException("Bad hash check on private key; wrong password?")
     key = bytes(key)
     return key
 
+
 def _jks_keystream(iv, password):
     """Helper keystream generator for _jks_pkey_decrypt"""
     cur = iv
     while 1:
-        cur = bytearray(hashlib.sha1(password + cur).digest()) # make sure we iterate over ints in both Py2 and Py3
+        cur = bytearray(hashlib.sha1(password + cur).digest())  # make sure we iterate over ints in both Py2 and Py3
         for byte in cur:
             yield byte
+
 
 def jce_pbe_decrypt(data, password, salt, iteration_count):
     """
@@ -56,12 +60,15 @@ def jce_pbe_decrypt(data, password, salt, iteration_count):
     result = strip_pkcs5_padding(padded)
     return result
 
+
 def _jce_pbe_derive_key_and_iv(password, salt, iteration_count):
     if len(salt) != 8:
-        raise ValueError("Expected 8-byte salt for PBEWithMD5AndTripleDES (OID %s), found %d bytes" % (".".join(str(i) for i in SUN_JCE_ALGO_ID), len(salt)))
+        raise ValueError("Expected 8-byte salt for PBEWithMD5AndTripleDES (OID %s), found %d bytes" % (
+        ".".join(str(i) for i in SUN_JCE_ALGO_ID), len(salt)))
 
-    # Note: unlike JKS, the PBEWithMD5AndTripleDES algorithm as implemented for JCE keystores uses an ASCII string for the password, not a regular Java/UTF-16BE string.
-    # It validates this explicitly and will throw an InvalidKeySpecException if non-ASCII byte codes are present in the password.
+    # Note: unlike JKS, the PBEWithMD5AndTripleDES algorithm as implemented for JCE keystores uses an
+    # ASCII string for the password, not a regular Java/UTF-16BE string.
+    # Validates this explicitly: throws InvalidKeySpecException if non-ASCII byte codes are present in the password.
     # See PBEKey's constructor in com/sun/crypto/provider/PBEKey.java.
     try:
         password_bytes = password.encode('ascii')
@@ -79,9 +86,10 @@ def _jce_pbe_derive_key_and_iv(password, salt, iteration_count):
             to_be_hashed = hashlib.md5(to_be_hashed + password_bytes).digest()
         derived += to_be_hashed
 
-    key = derived[:-8] # = 24 bytes
+    key = derived[:-8]  # = 24 bytes
     iv = derived[-8:]
     return key, iv
+
 
 def _jce_invert_salt_half(salt_half):
     """
@@ -102,4 +110,3 @@ def _jce_invert_salt_half(salt_half):
     salt[1] = salt[0]
     salt[0] = salt[3]
     return bytes(salt)
-

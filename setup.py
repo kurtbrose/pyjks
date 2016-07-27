@@ -26,7 +26,6 @@ more!
 
 from setuptools import setup, find_packages
 
-
 setup(
     name='pyjks',
     version='0.5.1dev',
@@ -56,7 +55,6 @@ setup(
                       'twofish'],
     test_suite="tests.test_jks",
 )
-
 
 """
 Releasing:
