@@ -19,7 +19,7 @@ def jks_pkey_decrypt(data, password_str):
     xoring = zip(data, _jks_keystream(iv, password_bytes))
     key = bytearray([d^k for d,k in xoring])
 
-    if hashlib.sha1(password_bytes + key).digest() != check:
+    if hashlib.sha1(bytes(password_bytes + key)).digest() != check:
         raise BadHashCheckException("Bad hash check on private key; wrong password?")
     key = bytes(key)
     return key
@@ -28,7 +28,8 @@ def _jks_keystream(iv, password):
     """Helper keystream generator for _jks_pkey_decrypt"""
     cur = iv
     while 1:
-        cur = bytearray(hashlib.sha1(password + cur).digest()) # make sure we iterate over ints in both Py2 and Py3
+        xhash = hashlib.sha1(bytes(password + cur)) # hashlib.sha1 in python 2.6 does not accept a bytearray argument
+        cur = bytearray(xhash.digest()) # make sure we iterate over ints in both Py2 and Py3
         for byte in cur:
             yield byte
 

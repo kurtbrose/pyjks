@@ -13,7 +13,7 @@ This is better:
 
 ## Requirements:
 
- * Python 2.7+ or Python 3.3+
+ * Python 2.6+ or Python 3.3+
  * pyasn1 0.1.7+
  * pyasn1_modules 0.0.8+
  * javaobj-py3 0.1.4+
