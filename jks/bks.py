@@ -257,7 +257,7 @@ class BksKeyStore(KeyStore):
             if _type == 0:
                 break
 
-            alias, pos = cls._read_utf(data, pos)
+            alias, pos = cls._read_utf(data, pos, kind="entry alias")
             timestamp = int(b8.unpack_from(data, pos)[0]); pos += 8
             chain_length = b4.unpack_from(data, pos)[0]; pos += 4
 
@@ -295,7 +295,7 @@ class BksKeyStore(KeyStore):
 
     @classmethod
     def _read_bks_cert(cls, data, pos, store_type):
-        cert_type, pos = cls._read_utf(data, pos)
+        cert_type, pos = cls._read_utf(data, pos, kind="certificate type")
         cert_data, pos = cls._read_data(data, pos)
         entry = BksTrustedCertEntry(type=cert_type, cert=cert_data, store_type=store_type)
         return entry, pos
@@ -304,8 +304,8 @@ class BksKeyStore(KeyStore):
     def _read_bks_key(cls, data, pos, store_type):
         """Given a data stream, attempt to parse a stored BKS key entry at the given position, and return it as a BksKeyEntry."""
         key_type = b1.unpack_from(data, pos)[0]; pos += 1
-        key_format, pos = BksKeyStore._read_utf(data, pos)
-        key_algorithm, pos = BksKeyStore._read_utf(data, pos)
+        key_format, pos = BksKeyStore._read_utf(data, pos, kind="key format")
+        key_algorithm, pos = BksKeyStore._read_utf(data, pos, kind="key algorithm")
         key_enc, pos = BksKeyStore._read_data(data, pos)
 
         entry = BksKeyEntry(key_type, key_format, key_algorithm, key_enc, store_type=store_type)
