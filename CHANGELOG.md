@@ -2,6 +2,16 @@
 
 Since August 14, 2013 there have been 2 releases and 107 commits.
 
+v0.5.1
+------
+*(August 25, 2016)*
+
+Support more Python versions and runtimes. Python 2.6, 3.3, 3.5, and
+PyPy are all now tested and supported. Also, improved error messages
+when parsing JKS and BKS.
+
+No security critical changes or bugfixes.
+
 v0.5.0
 ------
 
