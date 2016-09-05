@@ -68,12 +68,14 @@ def get_entry_bits(entry):
         return as_pem(entry.cert, "CERTIFICATE")
 
 if __name__ == "__main__":
-    parser = ArgumentParser()
+    parser = ArgumentParser(description="Utility for reading Java keystores.")
     parser.add_argument("keystore_file")
     parser.add_argument("keystore_password")
-    parser.add_argument("--type", default="jks")
-    parser.add_argument("-l", "--list", action="store_true", default=True)
-    parser.add_argument("-x", "--extract", metavar="ALIAS", dest="extract_alias")
+    parser.add_argument("--type", default="jks", choices=["jks", "jceks", "bks", "uber"], help="The type of input keystore. Defaults to 'jks'.")
+
+    group = parser.add_mutually_exclusive_group()
+    group.add_argument("-l", "--list", action="store_true", default=True, help="Print a list of entries/aliases in the keystore and some metadata about each one.")
+    group.add_argument("-x", "--extract", metavar="ALIAS", dest="extract_alias", help="Extract the relevant key and/or certificates for the given alias and print them in the PEM format.")
     args = parser.parse_args()
 
     args.type = args.type.lower()
