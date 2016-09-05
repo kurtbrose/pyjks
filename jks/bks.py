@@ -199,7 +199,7 @@ class BksSealedKeyEntry(AbstractBksEntry):
         self._encrypted = None
 
 
-class BksKeyStore(KeyStore):
+class BksKeyStore(AbstractKeystore):
     """
     Bouncycastle "BKS" keystore parser. Supports both the current V2 and old V1 formats.
     """

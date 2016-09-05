@@ -62,6 +62,48 @@ class UnexpectedKeyEncodingException(KeystoreException):
     """Signifies that a key was stored in an unexpected format or encoding."""
     pass
 
+class AbstractKeystore(object):
+    """
+    Abstract superclass for keystores.
+    """
+    def __init__(self, store_type, entries):
+        self.store_type = store_type  #: A string indicating the type of keystore that was loaded.
+        self.entries = dict(entries)  #: A dictionary of all entries in the keystore, mapped by alias.
+
+    @classmethod
+    def load(cls, filename, store_password, try_decrypt_keys=True):
+        """
+        Convenience wrapper function; reads the contents of the given file
+        and passes it through to :func:`loads`. See :func:`loads`.
+        """
+        with open(filename, 'rb') as file:
+            input_bytes = file.read()
+            ret = cls.loads(input_bytes,
+                            store_password,
+                            try_decrypt_keys=try_decrypt_keys)
+        return ret
+
+    @classmethod
+    def _read_utf(cls, data, pos, kind=None):
+        """
+        :param kind: Optional; a human-friendly identifier for the kind of UTF-8 data we're loading (e.g. is it a keystore alias? an algorithm identifier? something else?).
+                     Used to construct more informative exception messages when a decoding error occurs.
+        """
+        size = b2.unpack_from(data, pos)[0]
+        pos += 2
+        try:
+            return data[pos:pos+size].decode('utf-8'), pos+size
+        except (UnicodeEncodeError, UnicodeDecodeError) as e:
+            raise BadKeystoreFormatException(("Failed to read %s, contains bad UTF-8 data: %s" % (kind, str(e))) if kind else \
+                                             ("Encountered bad UTF-8 data: %s" % str(e)))
+
+    @classmethod
+    def _read_data(cls, data, pos):
+        size = b4.unpack_from(data, pos)[0]
+        pos += 4
+        return data[pos:pos+size], pos+size
+
+
 class AbstractKeystoreEntry(object):
     """Abstract superclass for keystore entries."""
     def __init__(self, **kwargs):

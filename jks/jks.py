@@ -225,21 +225,10 @@ class SecretKeyEntry(AbstractKeystoreEntry):
 
 # --------------------------------------------------------------------------
 
-class KeyStore(object):
-    """Represents a loaded JKS or JCEKS keystore."""
-
-    @classmethod
-    def load(cls, filename, store_password, try_decrypt_keys=True):
-        """
-        Convenience wrapper function; reads the contents of the given file
-        and passes it through to :func:`loads`. See :func:`loads`.
-        """
-        with open(filename, 'rb') as file:
-            input_bytes = file.read()
-            ret = cls.loads(input_bytes,
-                            store_password,
-                            try_decrypt_keys=try_decrypt_keys)
-        return ret
+class KeyStore(AbstractKeystore):
+    """
+    Represents a loaded JKS or JCEKS keystore.
+    """
 
     @classmethod
     def loads(cls, data, store_password, try_decrypt_keys=True):
@@ -374,8 +363,7 @@ class KeyStore(object):
         return cls(store_type, entries)
 
     def __init__(self, store_type, entries):
-        self.store_type = store_type  #: A string indicating the type of Java keystore that was loaded. Can be one of: ``jks``, ``jceks``.
-        self.entries = dict(entries)  #: A dictionary of all entries in the keystore, mapped by alias.
+        super(KeyStore, self).__init__(store_type, entries)
 
     @property
     def certs(self):
@@ -470,27 +458,6 @@ class KeyStore(object):
 
         entry = SecretKeyEntry(sealed_obj=sealed_obj, store_type=store_type)
         return entry, pos
-
-
-    @classmethod
-    def _read_utf(cls, data, pos, kind=None):
-        """
-        :param kind: Optional; a human-friendly identifier for the kind of UTF-8 data we're loading (e.g. is it a keystore alias? an algorithm identifier? something else?).
-                     Used to construct more informative exception messages when a decoding error occurs.
-        """
-        size = b2.unpack_from(data, pos)[0]
-        pos += 2
-        try:
-            return data[pos:pos+size].decode('utf-8'), pos+size
-        except (UnicodeEncodeError, UnicodeDecodeError) as e:
-            raise BadKeystoreFormatException(("Failed to read %s, contains bad UTF-8 data: %s" % (kind, str(e))) if kind else \
-                                             ("Encountered bad UTF-8 data: %s" % str(e)))
-
-    @classmethod
-    def _read_data(cls, data, pos):
-        size = b4.unpack_from(data, pos)[0]
-        pos += 4
-        return data[pos:pos+size], pos+size
 
     @classmethod
     def _read_java_obj(cls, data, pos, ignore_remaining_data=False):

@@ -25,11 +25,31 @@ encrypting the entire keystore using (a key derived from) the store password.
     :member-order: groupwise
     :inherited-members:
 
+    .. (Note: Explicit py:attribute definitions are needed here because :inherited-members: does not properly inherit
+        instance variables at the moment)
+    .. attribute:: entries
+
+        A dictionary of all entries in the keystore, mapped by alias.
+
+    .. attribute:: store_type
+
+        A string indicating the type of keystore that was loaded. Equals ``bks`` for instances of this class.
+
 .. autoclass:: UberKeyStore
     :members:
     :show-inheritance:
     :member-order: groupwise
     :inherited-members:
+
+    .. (Note: Explicit py:attribute definitions are needed here because :inherited-members: does not properly inherit
+        instance variables at the moment)
+    .. attribute:: entries
+
+        A dictionary of all entries in the keystore, mapped by alias.
+
+    .. attribute:: store_type
+
+        A string indicating the type of keystore that was loaded. Equals ``uber`` for instances of this class.
 
 Entry types
 -----------
