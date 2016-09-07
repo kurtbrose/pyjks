@@ -76,8 +76,11 @@ class BksKeyEntry(AbstractBksEntry):
             raise UnexpectedKeyEncodingException("Key format '%s' not recognized" % self.format)
 
     def is_decrypted(self):
+        """Always returns ``True`` for this entry type."""
         return True
+
     def decrypt(self, key_password):
+        """Does nothing for this entry type; these entries are stored in non-encrypted form."""
         pass
 
     @classmethod
@@ -95,6 +98,7 @@ class BksKeyEntry(AbstractBksEntry):
         elif t == KEY_TYPE_SECRET:
             return "SECRET"
         return None
+
 
 class BksSecretKeyEntry(AbstractBksEntry): # TODO: consider renaming this to SecretValueEntry, since it's arbitrary secret data
     """
@@ -120,11 +124,14 @@ class BksSecretKeyEntry(AbstractBksEntry): # TODO: consider renaming this to Sec
     def __init__(self, **kwargs):
         super(BksSecretKeyEntry, self).__init__(**kwargs)
         self.key = self._encrypted
+        """A byte string containing the secret key/value."""
 
-    # secret keys contain arbitrary data, unclear how to decrypt (may not be encrypted at all)
     def is_decrypted(self):
+        """Always returns ``True`` for this entry type."""
         return True
+
     def decrypt(self, key_password):
+        """Does nothing for this entry type; these entries stored arbitrary user-supplied data, unclear how to decrypt (may not be encrypted at all)."""
         pass
 
 class BksSealedKeyEntry(AbstractBksEntry):
@@ -197,6 +204,9 @@ class BksSealedKeyEntry(AbstractBksEntry):
 
         self._nested = key_entry
         self._encrypted = None
+
+    decrypt.__doc__ = AbstractBksEntry.decrypt.__doc__
+    is_decrypted.__doc__ = AbstractBksEntry.is_decrypted.__doc__
 
 
 class BksKeyStore(AbstractKeystore):

@@ -112,6 +112,22 @@ class AbstractKeystoreEntry(object):
         self.alias = kwargs.get("alias")
         self.timestamp = kwargs.get("timestamp")
 
+    def is_decrypted(self):
+        """
+        Returns ``True`` if the entry has already been decrypted, ``False`` otherwise.
+        """
+        raise NotImplementedError("Abstract method")
+
+    def decrypt(self, key_password):
+        """
+        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
+
+        :param str key_password: The password to decrypt the entry with.
+        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
+        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
+        """
+        raise NotImplementedError("Abstract method")
+
 def as_hex(ba):
     return "".join("{:02x}".format(b) for b in bytearray(ba))
 

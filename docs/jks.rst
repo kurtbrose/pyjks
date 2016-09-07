@@ -78,39 +78,12 @@ Entry types
             - ``(1,2,840,113549,1,1,1)`` (alias ``rsaEncryption``)
             - ``(1,2,840,10040,4,1)`` (alias ``id-dsa``).
 
-    .. method:: decrypt(password)
-
-        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
-
-        :param str password: The password to decrypt the entry with. If the entry was loaded from a JCEKS keystore,
-                             the password must not contain any characters outside of the ASCII character set.
-        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
-        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
-        :raise ValueError: If the entry was loaded from a JCEKS keystore and the password contains non-ASCII characters.
-
-    .. method:: is_decrypted()
-
-        Returns ``True`` if the entry has already been decrypted, ``False`` otherwise.
 
 .. autoclass:: SecretKeyEntry
     :members:
     :show-inheritance:
     :member-order: bysource
     :inherited-members:
-
-    .. method:: decrypt(password)
-
-        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
-
-        :param str password: The password to decrypt the entry with. Must not contain any characters outside
-                             of the ASCII character set.
-        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
-        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
-        :raise ValueError: If the password contains non-ASCII characters.
-
-    .. method:: is_decrypted()
-
-        Returns ``True`` if the entry has already been decrypted, ``False`` otherwise.
 
     .. attribute:: algorithm
 

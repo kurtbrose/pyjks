@@ -64,7 +64,7 @@ class TrustedCertEntry(AbstractKeystoreEntry):
         """Always returns ``True`` for this entry type."""
         return True
 
-    def decrypt(self, password):
+    def decrypt(self, key_password):
         """Does nothing for this entry type; certificates are inherently public data and are not stored in encrypted form."""
         return
 
@@ -97,6 +97,15 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         return (not self._encrypted)
 
     def decrypt(self, key_password):
+        """
+        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
+
+        :param str key_password: The password to decrypt the entry with. If the entry was loaded from a JCEKS keystore,
+                                 the password must not contain any characters outside of the ASCII character set.
+        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
+        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
+        :raise ValueError: If the entry was loaded from a JCEKS keystore and the password contains non-ASCII characters.
+        """
         if self.is_decrypted():
             return
 
@@ -134,6 +143,8 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         self._pkey_pkcs8 = plaintext
         self._algorithm_oid = algorithm_oid
 
+    is_decrypted.__doc__ = AbstractKeystoreEntry.is_decrypted.__doc__
+
 
 class SecretKeyEntry(AbstractKeystoreEntry):
     """Represents a secret (symmetric) key entry in a JCEKS keystore (e.g. an AES or DES key)."""
@@ -154,6 +165,15 @@ class SecretKeyEntry(AbstractKeystoreEntry):
         return (not self._encrypted)
 
     def decrypt(self, key_password):
+        """
+        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
+
+        :param str key_password: The password to decrypt the entry with. Must not contain any characters outside
+                                 of the ASCII character set.
+        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
+        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
+        :raise ValueError: If the password contains non-ASCII characters.
+        """
         if self.is_decrypted():
             return
 
@@ -222,6 +242,8 @@ class SecretKeyEntry(AbstractKeystoreEntry):
         self._algorithm = algorithm
         self._key = key
         self._key_size = key_size
+
+    is_decrypted.__doc__ = AbstractKeystoreEntry.is_decrypted.__doc__
 
 # --------------------------------------------------------------------------
 
