@@ -190,8 +190,10 @@ class BksKeyStore(KeyStore):
     """
     Bouncycaste "BKS" keystore parser. Supports both the old V1 and current V2 format.
     """
-    def __init__(self, store_type, entries):
+    def __init__(self, store_type, entries, version=2):
         super(BksKeyStore, self).__init__(store_type, entries)
+        self.version = version
+        """Version of the keystore format, if loaded."""
 
     @property
     def certs(self):
@@ -243,7 +245,7 @@ class BksKeyStore(KeyStore):
             computed_hmac = hmac.digest()
             if store_hmac != computed_hmac:
                 raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
-            return cls(store_type, entries)
+            return cls(store_type, entries, version=version)
 
         except struct.error as e:
             raise BadKeystoreFormatException(e)
@@ -369,7 +371,12 @@ class UberKeyStore(BksKeyStore):
 
             store_type = "uber"
             entries, size = cls._load_bks_entries(bks_store, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
-            return cls(store_type, entries)
+            return cls(store_type, entries, version=version)
 
         except struct.error as e:
             raise BadKeystoreFormatException(e)
+
+    def __init__(self, store_type, entries, version=1):
+        super(UberKeyStore, self).__init__(store_type, entries, version=version)
+        self.version = version # only here so Sphinx documents the field
+        """Version of the keystore format, if loaded."""
