@@ -351,29 +351,38 @@ class BksOnlyTests(AbstractTest):
 
     def test_empty_store_v1(self):
         store = jks.bks.BksKeyStore.load(KS_PATH + "/bks/empty.bksv1", "")
+        self.assertEqual(store.version, 1)
     def test_empty_store_v2(self):
         store = jks.bks.BksKeyStore.load(KS_PATH + "/bks/empty.bksv2", "")
+        self.assertEqual(store.version, 2)
     def test_empty_store_uber(self):
         store = jks.bks.UberKeyStore.load(KS_PATH + "/uber/empty.uber", "")
+        self.assertEqual(store.version, 1)
 
     def test_christmas_store_v1(self):
         store = jks.bks.BksKeyStore.load(KS_PATH + "/bks/christmas.bksv1", "12345678")
+        self.assertEqual(store.version, 1)
         self._test_christmas_store(store, "bks")
     def test_christmas_store_v2(self):
         store = jks.bks.BksKeyStore.load(KS_PATH + "/bks/christmas.bksv2", "12345678")
+        self.assertEqual(store.version, 2)
         self._test_christmas_store(store, "bks")
     def test_christmas_store_uber(self):
         store = jks.bks.UberKeyStore.load(KS_PATH + "/uber/christmas.uber", "12345678")
+        self.assertEqual(store.version, 1)
         self._test_christmas_store(store, "uber")
 
     def test_custom_entry_passwords_v1(self):
         store = jks.bks.BksKeyStore.load(KS_PATH + "/bks/custom_entry_passwords.bksv1", "store_password")
+        self.assertEqual(store.version, 1)
         self._test_custom_entry_passwords(store, "bks")
     def test_custom_entry_passwords_v2(self):
         store = jks.bks.BksKeyStore.load(KS_PATH + "/bks/custom_entry_passwords.bksv2", "store_password")
+        self.assertEqual(store.version, 2)
         self._test_custom_entry_passwords(store, "bks")
     def test_custom_entry_passwords_uber(self):
         store = jks.bks.UberKeyStore.load(KS_PATH + "/uber/custom_entry_passwords.uber", "store_password")
+        self.assertEqual(store.version, 1)
         self._test_custom_entry_passwords(store, "uber")
 
     def _test_christmas_store(self, store, store_type):

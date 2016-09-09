@@ -1,5 +1,5 @@
 # vim: set et ai ts=4 sts=4 sw=4:
-"""JKS/JCEKS file format decoder.  Use in conjunction with PyOpenSSL
+"""JKS/JCEKS file format decoder. Use in conjunction with PyOpenSSL
 to translate to PEM, or load private key and certs directly into
 openssl structs and wrap sockets.
 
@@ -50,21 +50,39 @@ SIGNATURE_WHITENING = b"Mighty Aphrodite"
 
 
 class TrustedCertEntry(AbstractKeystoreEntry):
+    """Represents a trusted certificate entry in a JKS or JCEKS keystore."""
+
     def __init__(self, **kwargs):
         super(TrustedCertEntry, self).__init__(**kwargs)
         self.type = kwargs.get("type")
+        """A string indicating the type of certificate. Unless in exotic applications, this is usually ``X.509``."""
         self.cert = kwargs.get("cert")
+        """A byte string containing the actual certificate data. In the case of X.509 certificates, this is the DER-encoded
+        X.509 representation of the certificate."""
 
     def is_decrypted(self):
+        """Always returns ``True`` for this entry type."""
         return True
-    def decrypt(self, password):
+
+    def decrypt(self, key_password):
+        """Does nothing for this entry type; certificates are inherently public data and are not stored in encrypted form."""
         return
 
 
 class PrivateKeyEntry(AbstractKeystoreEntry):
+    """Represents a private key entry in a JKS or JCEKS keystore (e.g. an RSA or DSA private key)."""
+
     def __init__(self, **kwargs):
         super(PrivateKeyEntry, self).__init__(**kwargs)
         self.cert_chain = kwargs.get("cert_chain")
+        """
+        A list of tuples, representing the certificate chain associated with the private key. Each element of the list of a 2-tuple
+        containing the following data:
+
+            - ``[0]``: A string indicating the type of certificate. Unless in exotic applications, this is usually ``X.509``.
+            - ``[1]``: A byte string containing the actual certificate data. In the case of X.509 certificates, this is the DER-encoded X.509 representation of the certificate.
+        """
+
         self._encrypted = kwargs.get("encrypted")
         self._pkey = kwargs.get("pkey")
         self._pkey_pkcs8 = kwargs.get("pkey_pkcs8")
@@ -79,6 +97,15 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         return (not self._encrypted)
 
     def decrypt(self, key_password):
+        """
+        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
+
+        :param str key_password: The password to decrypt the entry with. If the entry was loaded from a JCEKS keystore,
+                                 the password must not contain any characters outside of the ASCII character set.
+        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
+        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
+        :raise ValueError: If the entry was loaded from a JCEKS keystore and the password contains non-ASCII characters.
+        """
         if self.is_decrypted():
             return
 
@@ -116,8 +143,12 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         self._pkey_pkcs8 = plaintext
         self._algorithm_oid = algorithm_oid
 
+    is_decrypted.__doc__ = AbstractKeystoreEntry.is_decrypted.__doc__
+
 
 class SecretKeyEntry(AbstractKeystoreEntry):
+    """Represents a secret (symmetric) key entry in a JCEKS keystore (e.g. an AES or DES key)."""
+
     def __init__(self, **kwargs):
         super(SecretKeyEntry, self).__init__(**kwargs)
         self._encrypted = kwargs.get("sealed_obj")
@@ -134,6 +165,15 @@ class SecretKeyEntry(AbstractKeystoreEntry):
         return (not self._encrypted)
 
     def decrypt(self, key_password):
+        """
+        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
+
+        :param str key_password: The password to decrypt the entry with. Must not contain any characters outside
+                                 of the ASCII character set.
+        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
+        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
+        :raise ValueError: If the password contains non-ASCII characters.
+        """
         if self.is_decrypted():
             return
 
@@ -203,32 +243,19 @@ class SecretKeyEntry(AbstractKeystoreEntry):
         self._key = key
         self._key_size = key_size
 
+    is_decrypted.__doc__ = AbstractKeystoreEntry.is_decrypted.__doc__
+
 # --------------------------------------------------------------------------
 
-class KeyStore(object):
-    def __init__(self, store_type, entries):
-        self.store_type = store_type
-        self.entries = dict(entries)
-
-    @property
-    def certs(self):
-        return dict([(a, e) for a, e in self.entries.items()
-                     if isinstance(e, TrustedCertEntry)])
-
-    @property
-    def secret_keys(self):
-        return dict([(a, e) for a, e in self.entries.items()
-                     if isinstance(e, SecretKeyEntry)])
-
-    @property
-    def private_keys(self):
-        return dict([(a, e) for a, e in self.entries.items()
-                     if isinstance(e, PrivateKeyEntry)])
+class KeyStore(AbstractKeystore):
+    """
+    Represents a loaded JKS or JCEKS keystore.
+    """
 
     @classmethod
-    def load(cls, filename, store_password, try_decrypt_keys=True):
+    def loads(cls, data, store_password, try_decrypt_keys=True):
         """Loads the given keystore file using the supplied password for
-        verifying its integrity, and returns a jks.KeyStore instance.
+        verifying its integrity, and returns a :class:`KeyStore` instance.
 
         Note that entries in the store that represent some form of
         cryptographic key material are stored in encrypted form, and
@@ -252,26 +279,40 @@ class KeyStore(object):
            manual follow-up decrypt(key_password) call from the user
            before its individual attributes become accessible.
 
-        Setting try_decrypt_keys to False disables this automatic
+        Setting ``try_decrypt_keys`` to ``False`` disables this automatic
         decryption attempt, and returns all key entries in encrypted
         form.
 
         You can query whether a returned entry object has already been
-        decrypted by calling the .is_decrypted() method on it.
+        decrypted by calling the :meth:`is_decrypted` method on it.
         Attempting to access attributes of an entry that has not yet
-        been decrypted will result in a NotYetDecryptedException.
-        """
-        with open(filename, 'rb') as file:
-            input_bytes = file.read()
-            ret = cls.loads(input_bytes,
-                            store_password,
-                            try_decrypt_keys=try_decrypt_keys)
-        return ret
+        been decrypted will result in a
+        :class:`~jks.util.NotYetDecryptedException`.
 
-    @classmethod
-    def loads(cls, data, store_password, try_decrypt_keys=True):
-        """
-        See the documentation on the load() function.
+        :param bytes data: Byte string representation of the keystore
+          to be loaded.
+        :param str password: Keystore password string
+        :param bool try_decrypt_keys: Whether to automatically try to
+          decrypt any encountered key entries using the same password
+          as the keystore password.
+
+        :returns: A loaded :class:`KeyStore` instance, if the keystore
+          could be successfully parsed and the supplied store password
+          is correct.
+
+          If the ``try_decrypt_keys`` parameter was set to ``True``, any
+          keys that could be successfully decrypted using the store
+          password have already been decrypted; otherwise, no atttempt
+          to decrypt any key entries is made.
+
+        :raises BadKeystoreFormatException: If the keystore is malformed
+          in some way
+        :raises UnsupportedKeystoreVersionException: If the keystore
+          contains an unknown format version number
+        :raises KeystoreSignatureException: If the keystore signature
+          could not be verified using the supplied store password
+        :raises DuplicateAliasException: If the keystore contains
+          duplicate aliases
         """
         store_type = ""
         magic_number = data[:4]
@@ -342,6 +383,30 @@ class KeyStore(object):
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
         return cls(store_type, entries)
+
+    def __init__(self, store_type, entries):
+        super(KeyStore, self).__init__(store_type, entries)
+
+    @property
+    def certs(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`TrustedCertEntry`."""
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, TrustedCertEntry)])
+
+    @property
+    def secret_keys(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`SecretKeyEntry`."""
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, SecretKeyEntry)])
+
+    @property
+    def private_keys(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`PrivateKeyEntry`."""
+        return dict([(a, e) for a, e in self.entries.items()
+                     if isinstance(e, PrivateKeyEntry)])
 
     @classmethod
     def _read_trusted_cert(cls, data, pos, store_type):
@@ -415,27 +480,6 @@ class KeyStore(object):
 
         entry = SecretKeyEntry(sealed_obj=sealed_obj, store_type=store_type)
         return entry, pos
-
-
-    @classmethod
-    def _read_utf(cls, data, pos, kind=None):
-        """
-        :param kind: Optional; a human-friendly identifier for the kind of UTF-8 data we're loading (e.g. is it a keystore alias? an algorithm identifier? something else?).
-                     Used to construct more informative exception messages when a decoding error occurs.
-        """
-        size = b2.unpack_from(data, pos)[0]
-        pos += 2
-        try:
-            return data[pos:pos+size].decode('utf-8'), pos+size
-        except (UnicodeEncodeError, UnicodeDecodeError) as e:
-            raise BadKeystoreFormatException(("Failed to read %s, contains bad UTF-8 data: %s" % (kind, str(e))) if kind else \
-                                             ("Encountered bad UTF-8 data: %s" % str(e)))
-
-    @classmethod
-    def _read_data(cls, data, pos):
-        size = b4.unpack_from(data, pos)[0]
-        pos += 4
-        return data[pos:pos+size], pos+size
 
     @classmethod
     def _read_java_obj(cls, data, pos, ignore_remaining_data=False):

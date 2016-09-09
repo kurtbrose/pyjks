@@ -1,7 +1,4 @@
 # vim: set et ai ts=4 sts=4 sw=4:
-"""
-BKS file format decoder.
-"""
 import struct
 import hashlib
 from pyasn1.codec.ber import decoder
@@ -17,9 +14,9 @@ ENTRY_TYPE_CERTIFICATE = 1
 ENTRY_TYPE_KEY = 2            # plaintext key entry as would otherwise be stored inside a sealed entry (type 4); no longer supported at the time of writing (BC 1.54)
 ENTRY_TYPE_SECRET = 3         # for keys that were added to the store in already-protected form; can be arbitrary data
 ENTRY_TYPE_SEALED = 4         # for keys that were protected by the BC keystore implementation upon adding
-KEY_TYPE_PRIVATE = 0
-KEY_TYPE_PUBLIC = 1
-KEY_TYPE_SECRET = 2
+KEY_TYPE_PRIVATE = 0          #: Type indicator for private keys in :class:`BksKeyEntry`.
+KEY_TYPE_PUBLIC = 1           #: Type indicator for public keys in :class:`BksKeyEntry`.
+KEY_TYPE_SECRET = 2           #: Type indicator for secret keys in :class:`BksKeyEntry`. Indicates a key for use with a symmetric encryption algorithm.
 
 class AbstractBksEntry(AbstractKeystoreEntry):
     """Abstract superclass for BKS keystore entry types"""
@@ -30,20 +27,25 @@ class AbstractBksEntry(AbstractKeystoreEntry):
         self._encrypted = kwargs.get("encrypted")
 
 class BksTrustedCertEntry(TrustedCertEntry):
+    """Represents a trusted certificate entry in a BKS or UBER keystore."""
     pass # identical
 
 class BksKeyEntry(AbstractBksEntry):
     """
     Represents a non-encrypted cryptographic key (public, private or secret) stored in a BKS keystore.
     May exceptionally appear as a top-level entry type in (very) old keystores, but you are most likely
-    to encounter these as the plaintext inside a SealedKeyEntry.
+    to encounter these as the nested object inside a :class:`BksSealedKeyEntry` once decrypted.
     """
     def __init__(self, type, format, algorithm, encoded, **kwargs):
         super(BksKeyEntry, self).__init__(**kwargs)
         self.type = type
+        """An integer indicating the type of key: one of :const:`KEY_TYPE_PRIVATE`, :const:`KEY_TYPE_PUBLIC`, :const:`KEY_TYPE_SECRET`."""
         self.format = format
+        """A string indicating the format or encoding in which the key is stored. One of: ``PKCS8``, ``PKCS#8``, ``X.509``, ``X509``, ``RAW``."""
         self.algorithm = algorithm
+        """A string indicating the algorithm for which the key is valid."""
         self.encoded = encoded
+        """A byte string containing the key, formatted as indicated by the :attr:`format` attribute."""
 
         if self.type == KEY_TYPE_PRIVATE:
             if self.format not in ["PKCS8", "PKCS#8"]:
@@ -74,12 +76,21 @@ class BksKeyEntry(AbstractBksEntry):
             raise UnexpectedKeyEncodingException("Key format '%s' not recognized" % self.format)
 
     def is_decrypted(self):
+        """Always returns ``True`` for this entry type."""
         return True
+
     def decrypt(self, key_password):
+        """Does nothing for this entry type; these entries are stored in non-encrypted form."""
         pass
 
     @classmethod
     def type2str(cls, t):
+        """
+        Returns a string representation of the given key type. Returns one of ``PRIVATE``, ``PUBLIC`` or ``SECRET``, or ``None``
+        if no such key type is known.
+
+        :param int t: Key type constant. One of :const:`KEY_TYPE_PRIVATE`, :const:`KEY_TYPE_PUBLIC`, :const:`KEY_TYPE_SECRET`.
+        """
         if t == KEY_TYPE_PRIVATE:
             return "PRIVATE"
         elif t == KEY_TYPE_PUBLIC:
@@ -88,20 +99,23 @@ class BksKeyEntry(AbstractBksEntry):
             return "SECRET"
         return None
 
+
 class BksSecretKeyEntry(AbstractBksEntry): # TODO: consider renaming this to SecretValueEntry, since it's arbitrary secret data
     """
-    Conceptually similar to, but not to be confused with, BksKeyEntry objects of type SECRET:
+    Conceptually similar to, but not to be confused with, :class:`BksKeyEntry` objects of type :const:`KEY_TYPE_SECRET`:
 
-      - BksSecretKeyEntry objects store the result of arbitrary user-supplied byte[]s, which, per the Java Keystore SPI, keystores are
+      - :class:`BksSecretKeyEntry` objects store the result of arbitrary user-supplied byte[]s, which, per the Java Keystore SPI, keystores are
         obligated to assume have already been protected by the user in some unspecified way. Because of this assumption, no password is
         provided for these entries when adding them to the keystore, and keystores are thus forced to store these bytes as-is.
-        Produced through a KeyStore.setKeyEntry(String alias, byte[] key, Certificate[] chain) call.
+
+        Produced by a call to ``KeyStore.setKeyEntry(String alias, byte[] key, Certificate[] chain)`` call.
 
         The bouncycastle project appears to have completely abandoned these entry types well over a decade ago now, and it is no
         longer possible to retrieve these entries through the Java APIs in any (remotely) recent BC version.
 
-      - BksKeyEntry objects of .type == "SECRET" store the result of a getEncoded() call on proper Java objects of type SecretKey.
-        Produced by a call to KeyStore.setKeyEntry(String alias, Key key, char[] password, Certificate[] chain).
+      - :class:`BksKeyEntry` objects of type :const:`KEY_TYPE_SECRET` store the result of a getEncoded() call on proper Java objects of type SecretKey.
+
+        Produced by a call to ``KeyStore.setKeyEntry(String alias, Key key, char[] password, Certificate[] chain)``.
 
         The difference here is that the KeyStore implementation knows it's getting a proper (Secret)Key Java object, and can decide
         for itself how to store it given the password supplied by the user. I.e., in this version of setKeyEntry it is left up to
@@ -110,16 +124,22 @@ class BksSecretKeyEntry(AbstractBksEntry): # TODO: consider renaming this to Sec
     def __init__(self, **kwargs):
         super(BksSecretKeyEntry, self).__init__(**kwargs)
         self.key = self._encrypted
+        """A byte string containing the secret key/value."""
 
-    # secret keys contain arbitrary data, unclear how to decrypt (may not be encrypted at all)
     def is_decrypted(self):
+        """Always returns ``True`` for this entry type."""
         return True
+
     def decrypt(self, key_password):
+        """Does nothing for this entry type; these entries stored arbitrary user-supplied data, unclear how to decrypt (may not be encrypted at all)."""
         pass
 
 class BksSealedKeyEntry(AbstractBksEntry):
     """
-    PBEWithSHAAnd3-KeyTripleDES-CBC-encrypted wrapper around a BksKeyEntry. The contained key type is unknown until decrypted.
+    PBEWithSHAAnd3-KeyTripleDES-CBC-encrypted wrapper around a :class:`BksKeyEntry`. The contained key type is unknown until decrypted.
+
+    Once decrypted, objects of this type can be used in the same way as :class:`BksKeyEntry`: attribute accesses are forwarded
+    to the wrapped :class:`BksKeyEntry` object.
     """
     def __init__(self, **kwargs):
         super(BksSealedKeyEntry, self).__init__(**kwargs)
@@ -185,36 +205,67 @@ class BksSealedKeyEntry(AbstractBksEntry):
         self._nested = key_entry
         self._encrypted = None
 
+    decrypt.__doc__ = AbstractBksEntry.decrypt.__doc__
+    is_decrypted.__doc__ = AbstractBksEntry.is_decrypted.__doc__
 
-class BksKeyStore(KeyStore):
+
+class BksKeyStore(AbstractKeystore):
     """
-    Bouncycaste "BKS" keystore parser. Supports both the old V1 and current V2 format.
+    Bouncycastle "BKS" keystore parser. Supports both the current V2 and old V1 formats.
     """
-    def __init__(self, store_type, entries):
+    def __init__(self, store_type, entries, version=2):
         super(BksKeyStore, self).__init__(store_type, entries)
+        self.version = version
+        """Version of the keystore format, if loaded."""
 
     @property
     def certs(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`BksTrustedCertEntry`."""
         return dict([(a, e) for a, e in self.entries.items()
                      if isinstance(e, BksTrustedCertEntry)])
 
     @property
     def secret_keys(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`BksSecretKeyEntry`."""
         return dict([(a, e) for a, e in self.entries.items()
                      if isinstance(e, BksSecretKeyEntry)])
 
     @property
     def sealed_keys(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`BksSealedKeyEntry`."""
         return dict([(a, e) for a, e in self.entries.items()
                      if isinstance(e, BksSealedKeyEntry)])
 
     @property
     def plain_keys(self):
+        """A subset of the :attr:`entries` dictionary, filtered down to only
+        those entries of type :class:`BksKeyEntry`."""
         return dict([(a, e) for a, e in self.entries.items()
                      if isinstance(e, BksKeyEntry)])
 
     @classmethod
     def loads(cls, data, store_password, try_decrypt_keys=True):
+        """
+        See :meth:`jks.jks.KeyStore.loads`.
+
+        :param bytes data: Byte string representation of the keystore to be loaded.
+        :param str password: Keystore password string
+        :param bool try_decrypt_keys: Whether to automatically try to decrypt any encountered key entries using the same password
+                                      as the keystore password.
+
+        :returns: A loaded :class:`BksKeyStore` instance, if the keystore could be successfully parsed and the supplied store password is correct.
+
+                  If the ``try_decrypt_keys`` parameters was set to ``True``, any keys that could be successfully decrypted using the
+                  store password have already been decrypted; otherwise, no atttempt to decrypt any key entries is made.
+
+        :raises BadKeystoreFormatException: If the keystore is malformed in some way
+        :raises UnsupportedKeystoreVersionException: If the keystore contains an unknown format version number
+        :raises KeystoreSignatureException: If the keystore signature could not be verified using the supplied store password
+        :raises DuplicateAliasException: If the keystore contains duplicate aliases
+        """
         try:
             pos = 0
             version = b4.unpack_from(data, pos)[0]; pos += 4
@@ -243,7 +294,7 @@ class BksKeyStore(KeyStore):
             computed_hmac = hmac.digest()
             if store_hmac != computed_hmac:
                 raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
-            return cls(store_type, entries)
+            return cls(store_type, entries, version=version)
 
         except struct.error as e:
             raise BadKeystoreFormatException(e)
@@ -329,6 +380,25 @@ class UberKeyStore(BksKeyStore):
     """
     @classmethod
     def loads(cls, data, store_password, try_decrypt_keys=True):
+        """
+        See :meth:`jks.jks.KeyStore.loads`.
+
+        :param bytes data: Byte string representation of the keystore to be loaded.
+        :param str password: Keystore password string
+        :param bool try_decrypt_keys: Whether to automatically try to decrypt any encountered key entries using the same password
+                                      as the keystore password.
+
+        :returns: A loaded :class:`UberKeyStore` instance, if the keystore could be successfully parsed and the supplied store password is correct.
+
+                  If the ``try_decrypt_keys`` parameters was set to ``True``, any keys that could be successfully decrypted using the
+                  store password have already been decrypted; otherwise, no atttempt to decrypt any key entries is made.
+
+        :raises BadKeystoreFormatException: If the keystore is malformed in some way
+        :raises UnsupportedKeystoreVersionException: If the keystore contains an unknown format version number
+        :raises KeystoreSignatureException: If the keystore signature could not be verified using the supplied store password
+        :raises DecryptionFailureException: If the keystore contents could not be decrypted using the supplied store password
+        :raises DuplicateAliasException: If the keystore contains duplicate aliases
+        """
         # Uber keystores contain the same entry data as BKS keystores, except they wrap it differently:
         #    BKS  = BKS_store || HMAC-SHA1(BKS_store)
         #    UBER = PBEWithSHAAndTwofish-CBC(BKS_store || SHA1(BKS_store))
@@ -369,7 +439,12 @@ class UberKeyStore(BksKeyStore):
 
             store_type = "uber"
             entries, size = cls._load_bks_entries(bks_store, store_type, store_password, try_decrypt_keys=try_decrypt_keys)
-            return cls(store_type, entries)
+            return cls(store_type, entries, version=version)
 
         except struct.error as e:
             raise BadKeystoreFormatException(e)
+
+    def __init__(self, store_type, entries, version=1):
+        super(UberKeyStore, self).__init__(store_type, entries, version=version)
+        self.version = version # only here so Sphinx documents the field
+        """Version of the keystore format, if loaded."""

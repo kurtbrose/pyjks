@@ -15,26 +15,118 @@ RSA_ENCRYPTION_OID = (1,2,840,113549,1,1,1)
 DSA_OID            = (1,2,840,10040,4,1)       # identifier for DSA public/private keys; see RFC 3279, section 2.2.2 (e.g. in PKCS#8 PrivateKeyInfo or X.509 SubjectPublicKeyInfo)
 DSA_WITH_SHA1_OID  = (1,2,840,10040,4,3)       # identifier for the DSA signature algorithm; see RFC 3279, section 2.3.2 (e.g. in X.509 signatures)
 
-class KeystoreException(Exception): pass
-class KeystoreSignatureException(KeystoreException): pass
-class DuplicateAliasException(KeystoreException): pass
-class NotYetDecryptedException(KeystoreException): pass
-class BadKeystoreFormatException(KeystoreException): pass
-class BadDataLengthException(KeystoreException): pass
-class BadPaddingException(KeystoreException): pass
-class BadHashCheckException(KeystoreException): pass
-class DecryptionFailureException(KeystoreException): pass
-class UnsupportedKeystoreVersionException(KeystoreException): pass
-class UnexpectedJavaTypeException(KeystoreException): pass
-class UnexpectedAlgorithmException(KeystoreException): pass
-class UnexpectedKeyEncodingException(KeystoreException): pass
+class KeystoreException(Exception):
+    """Superclass for all pyjks exceptions."""
+    pass
+class KeystoreSignatureException(KeystoreException):
+    """Signifies that the supplied password for a keystore integrity check is incorrect."""
+    pass
+class DuplicateAliasException(KeystoreException):
+    """Signifies that duplicate aliases were encountered in a keystore."""
+    pass
+class NotYetDecryptedException(KeystoreException):
+    """
+    Signifies that an attribute of a key store entry can not be accessed because the entry has not yet been decrypted.
+
+    By default, the keystore ``load`` and ``loads`` methods automatically try to decrypt all key entries using the store password.
+    Any keys for which that attempt fails are returned undecrypted, and will raise this exception when its attributes are accessed.
+
+    To resolve, first call decrypt() with the correct password on the entry object whose attributes you want to access.
+    """
+    pass
+class BadKeystoreFormatException(KeystoreException):
+    """Signifies that a structural error was encountered during key store parsing."""
+    pass
+class BadDataLengthException(KeystoreException):
+    """Signifies that given input data was of wrong or unexpected length."""
+    pass
+class BadPaddingException(KeystoreException):
+    """Signifies that bad padding was encountered during decryption."""
+    pass
+class BadHashCheckException(KeystoreException):
+    """Signifies that a hash computation did not match an expected value."""
+    pass
+class DecryptionFailureException(KeystoreException):
+    """Signifies failure to decrypt a value."""
+    pass
+class UnsupportedKeystoreVersionException(KeystoreException):
+    """Signifies an unexpected or unsupported keystore format version."""
+    pass
+class UnexpectedJavaTypeException(KeystoreException):
+    """Signifies that a serialized Java object of unexpected type was encountered."""
+    pass
+class UnexpectedAlgorithmException(KeystoreException):
+    """Signifies that an unexpected cryptographic algorithm was used in a keystore."""
+    pass
+class UnexpectedKeyEncodingException(KeystoreException):
+    """Signifies that a key was stored in an unexpected format or encoding."""
+    pass
+
+class AbstractKeystore(object):
+    """
+    Abstract superclass for keystores.
+    """
+    def __init__(self, store_type, entries):
+        self.store_type = store_type  #: A string indicating the type of keystore that was loaded.
+        self.entries = dict(entries)  #: A dictionary of all entries in the keystore, mapped by alias.
+
+    @classmethod
+    def load(cls, filename, store_password, try_decrypt_keys=True):
+        """
+        Convenience wrapper function; reads the contents of the given file
+        and passes it through to :func:`loads`. See :func:`loads`.
+        """
+        with open(filename, 'rb') as file:
+            input_bytes = file.read()
+            ret = cls.loads(input_bytes,
+                            store_password,
+                            try_decrypt_keys=try_decrypt_keys)
+        return ret
+
+    @classmethod
+    def _read_utf(cls, data, pos, kind=None):
+        """
+        :param kind: Optional; a human-friendly identifier for the kind of UTF-8 data we're loading (e.g. is it a keystore alias? an algorithm identifier? something else?).
+                     Used to construct more informative exception messages when a decoding error occurs.
+        """
+        size = b2.unpack_from(data, pos)[0]
+        pos += 2
+        try:
+            return data[pos:pos+size].decode('utf-8'), pos+size
+        except (UnicodeEncodeError, UnicodeDecodeError) as e:
+            raise BadKeystoreFormatException(("Failed to read %s, contains bad UTF-8 data: %s" % (kind, str(e))) if kind else \
+                                             ("Encountered bad UTF-8 data: %s" % str(e)))
+
+    @classmethod
+    def _read_data(cls, data, pos):
+        size = b4.unpack_from(data, pos)[0]
+        pos += 4
+        return data[pos:pos+size], pos+size
+
 
 class AbstractKeystoreEntry(object):
+    """Abstract superclass for keystore entries."""
     def __init__(self, **kwargs):
         super(AbstractKeystoreEntry, self).__init__()
         self.store_type = kwargs.get("store_type")
         self.alias = kwargs.get("alias")
         self.timestamp = kwargs.get("timestamp")
+
+    def is_decrypted(self):
+        """
+        Returns ``True`` if the entry has already been decrypted, ``False`` otherwise.
+        """
+        raise NotImplementedError("Abstract method")
+
+    def decrypt(self, key_password):
+        """
+        Decrypts the entry using the given password. Has no effect if the entry has already been decrypted.
+
+        :param str key_password: The password to decrypt the entry with.
+        :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
+        :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
+        """
+        raise NotImplementedError("Abstract method")
 
 def as_hex(ba):
     return "".join("{:02x}".format(b) for b in bytearray(ba))
