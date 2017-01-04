@@ -136,6 +136,147 @@ class JksTests(AbstractTest):
         self.assertEqual(store.store_type, "jks")
         self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.jks_non_ascii_password.private_key, expected.jks_non_ascii_password.certs)
 
+    def test_load_and_save_rsa_keystore(self):
+        with open(KS_PATH + "/jks/RSA2048_3certs.jks", 'rb') as file:
+            keystore_bytes = file.read()
+        store = jks.KeyStore.loads(keystore_bytes, "12345678", False)
+        resaved_keystore_bytes = store.saves('12345678')
+        # since we didn't decrypt the key, the keystores should be identical
+        self.assertEqual(keystore_bytes, resaved_keystore_bytes)
+
+    def test_load_and_save_dsa_keystore(self):
+        with open(KS_PATH + "/jks/DSA2048.jks", 'rb') as file:
+            keystore_bytes = file.read()
+        store = jks.KeyStore.loads(keystore_bytes, "12345678", False)
+        resaved_keystore_bytes = store.saves('12345678')
+        # since we didn't decrypt the key, the keystores should be identical
+        self.assertEqual(keystore_bytes, resaved_keystore_bytes)
+
+    def test_load_and_save_keystore_non_ascii_password(self):
+        with open(KS_PATH + "/jks/non_ascii_password.jks", 'rb') as file:
+            keystore_bytes = file.read()
+        store = jks.KeyStore.loads(keystore_bytes, u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029", False)
+        resaved_keystore_bytes = store.saves(u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
+        # since we didn't decrypt the key, the keystores should be identical
+        self.assertEqual(keystore_bytes, resaved_keystore_bytes)
+
+    def test_create_and_load_keystore_non_ascii_password(self):
+        cert = jks.PrivateKeyEntry.new('mykey', expected.jks_non_ascii_password.certs, expected.jks_non_ascii_password.private_key)
+        store = jks.KeyStore.new('jks', [cert])
+        store_bytes = store.saves(u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
+        store2 = jks.KeyStore.loads(store_bytes, u"\u10DA\u0028\u0CA0\u76CA\u0CA0\u10DA\u0029")
+        pk = self.find_private_key(store2, "mykey")
+        self.assertEqual(store2.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.jks_non_ascii_password.private_key, expected.jks_non_ascii_password.certs)
+
+    def test_create_and_load_non_ascii_alias(self):
+        cert = jks.PrivateKeyEntry.new(u'\xe6\xe6\xe6\xf8\xf8\xf8\xe5\xe5\xf8\xe6', expected.RSA1024.certs, expected.RSA1024.private_key)
+        store = jks.KeyStore.new('jks', [cert])
+        store_bytes = store.saves('12345678')
+        store2 = jks.KeyStore.loads(store_bytes, '12345678')
+        pk = self.find_private_key(store2, u'\xe6\xe6\xe6\xf8\xf8\xf8\xe5\xe5\xf8\xe6')
+        self.assertEqual(store2.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA1024.private_key, expected.RSA1024.certs)
+
+    def test_create_and_load_custom_entry_passwords(self):
+        cert = jks.PrivateKeyEntry.new('mykey', expected.custom_entry_passwords.certs, expected.custom_entry_passwords.private_key)
+        store = jks.KeyStore.new('jks', [cert])
+        pk = self.find_private_key(store, "mykey")
+        self.assertTrue(pk.is_decrypted())
+        pk.encrypt("private_password")
+        self.assertTrue(not pk.is_decrypted())
+        store_bytes = store.saves("store_password")
+        store2 = jks.KeyStore.loads(store_bytes, 'store_password')
+        pk2 = self.find_private_key(store2, "mykey")
+        self.assertTrue(not pk2.is_decrypted())
+        pk2.decrypt("private_password")
+        self.assertTrue(pk2.is_decrypted())
+        self.assertEqual(store2.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk2, jks.util.RSA_ENCRYPTION_OID, expected.custom_entry_passwords.private_key, expected.custom_entry_passwords.certs)
+
+    def test_create_and_load_keystore_pkcs8_rsa(self):
+        cert = jks.PrivateKeyEntry.new('mykey', expected.RSA2048_3certs.certs, expected.RSA2048_3certs.private_key)
+        store = jks.KeyStore.new('jks', [cert])
+        store_bytes = store.saves('12345678')
+        store2 = jks.KeyStore.loads(store_bytes, '12345678')
+        pk = self.find_private_key(store2, "mykey")
+        self.assertEqual(store2.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
+
+    def test_create_and_load_keystore_pkcs8_dsa(self):
+        cert = jks.PrivateKeyEntry.new('mykey', expected.DSA2048.certs, expected.DSA2048.private_key)
+        store = jks.KeyStore.new('jks', [cert])
+        store_bytes = store.saves('12345678')
+        store2 = jks.KeyStore.loads(store_bytes, '12345678')
+        pk = self.find_private_key(store2, "mykey")
+        self.assertEqual(store2.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk, jks.util.DSA_OID, expected.DSA2048.private_key, expected.DSA2048.certs)
+
+    def test_create_and_load_keystore_raw_rsa(self):
+        cert = jks.PrivateKeyEntry.new('mykey', expected.RSA2048_3certs.certs, expected.RSA2048_3certs.raw_private_key, 'rsa_raw')
+        store = jks.KeyStore.new('jks', [cert])
+        store_bytes = store.saves('12345678')
+        store2 = jks.KeyStore.loads(store_bytes, '12345678')
+        pk = self.find_private_key(store2, "mykey")
+        self.assertEqual(store2.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk, jks.util.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
+
+    def test_create_and_load_keystore_trusted_certs(self):
+        cert1 = jks.TrustedCertEntry(type='X.509', cert=expected.RSA2048_3certs.certs[0], timestamp=1463338684456, alias='cert1')
+        cert2 = jks.TrustedCertEntry(type='X.509', cert=expected.RSA2048_3certs.certs[1], timestamp=1463338684456, alias='cert2')
+        cert3 = jks.TrustedCertEntry(type='X.509', cert=expected.RSA2048_3certs.certs[2], timestamp=1463338684456, alias='cert3')
+        store = jks.KeyStore.new('jks', [cert1, cert2, cert3])
+        store_bytes = store.saves('12345678')
+        store2 = jks.KeyStore.loads(store_bytes, '12345678')
+        cert1_2 = self.find_cert(store2, "cert1")
+        cert2_2 = self.find_cert(store2, "cert2")
+        cert3_2 = self.find_cert(store2, "cert3")
+        self.assertEqual(cert1_2.cert, expected.RSA2048_3certs.certs[0])
+        self.assertEqual(cert2_2.cert, expected.RSA2048_3certs.certs[1])
+        self.assertEqual(cert3_2.cert, expected.RSA2048_3certs.certs[2])
+
+    def test_create_and_load_keystore_both_trusted_and_private(self):
+        pk = jks.PrivateKeyEntry.new('mykey', expected.RSA2048_3certs.certs, expected.RSA2048_3certs.raw_private_key, 'rsa_raw')
+        cert1 = jks.TrustedCertEntry.new('cert1', expected.RSA2048_3certs.certs[0])
+        cert2 = jks.TrustedCertEntry.new('cert2', expected.RSA2048_3certs.certs[1])
+        cert3 = jks.TrustedCertEntry.new('cert3', expected.RSA2048_3certs.certs[2])
+        store = jks.KeyStore.new('jks', [pk, cert1, cert2, cert3])
+        store_bytes = store.saves('12345678')
+        store2 = jks.KeyStore.loads(store_bytes, '12345678')
+        cert1_2 = self.find_cert(store2, "cert1")
+        cert2_2 = self.find_cert(store2, "cert2")
+        cert3_2 = self.find_cert(store2, "cert3")
+        pk2 = self.find_private_key(store2, "mykey")
+        self.assertEqual(cert1_2.cert, expected.RSA2048_3certs.certs[0])
+        self.assertEqual(cert2_2.cert, expected.RSA2048_3certs.certs[1])
+        self.assertEqual(cert3_2.cert, expected.RSA2048_3certs.certs[2])
+        self.assertEqual(store.store_type, "jks")
+        self.check_pkey_and_certs_equal(pk2, jks.util.RSA_ENCRYPTION_OID, expected.RSA2048_3certs.private_key, expected.RSA2048_3certs.certs)
+
+    def test_new_keystore_duplicate_alias(self):
+        cert1 = jks.TrustedCertEntry.new('cert1', expected.RSA2048_3certs.certs[0])
+        cert2 = jks.TrustedCertEntry.new('cert1', expected.RSA2048_3certs.certs[1])
+        self.assertRaises(jks.util.DuplicateAliasException, jks.KeyStore.new, 'jks', [cert1, cert2])
+
+    def test_save_invalid_keystore_format(self):
+        self.assertRaises(jks.util.UnsupportedKeystoreTypeException, jks.KeyStore.new, 'invalid', [])
+
+    def test_save_invalid_keystore_entry(self):
+        self.assertRaises(jks.util.UnsupportedKeystoreEntryTypeException, jks.KeyStore.new, 'jks', ['string'])
+
+    def test_create_unknown_key_format(self):
+        self.assertRaises(jks.util.UnsupportedKeyFormatException, jks.PrivateKeyEntry.new, 'alias','cert', 'key', 'ecdsa')
+
+    def test_save_jks_keystore_with_secret_key(self):
+        store = jks.KeyStore.load(KS_PATH + "/jceks/AES128.jceks", "12345678")
+        store.store_type = 'jks' # changing it to a jks keystore
+        self.assertRaises(jks.util.UnsupportedKeystoreEntryTypeException, store.saves, '12345678')
+
+    def test_create_jks_keystore_with_secret_key(self):
+        store = jks.KeyStore.load(KS_PATH + "/jceks/AES128.jceks", "12345678")
+        sk = self.find_secret_key(store, "mykey")
+        self.assertRaises(jks.util.UnsupportedKeystoreEntryTypeException, jks.KeyStore.new, 'jks', [sk])
+
 class JceTests(AbstractTest):
     def test_empty_store(self):
         store = jks.KeyStore.load(KS_PATH + "/jceks/empty.jceks", "")

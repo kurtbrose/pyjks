@@ -11,4 +11,5 @@ Exception types
     :members: KeystoreException, KeystoreSignatureException, DuplicateAliasException, NotYetDecryptedException,
               BadKeystoreFormatException, BadDataLengthException, BadPaddingException, BadHashCheckException,
               DecryptionFailureException, UnsupportedKeystoreVersionException, UnexpectedJavaTypeException,
-              UnexpectedAlgorithmException, UnexpectedKeyEncodingException
+              UnexpectedAlgorithmException, UnexpectedKeyEncodingException, UnsupportedKeystoreTypeException,
+              UnsupportedKeystoreEntryTypeException, UnsupportedKeyFormatException
