@@ -232,8 +232,6 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         Has no effect if the entry has already been decrypted.
         
         :param str key_password: The password to encrypt the entry with.
-        
-        :returns: A encrypted and encoded private key.
         """
         if not self.is_decrypted():
             return self._encrypted
