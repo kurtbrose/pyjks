@@ -228,13 +228,13 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         """
         Encrypts the private key, so that it can be saved to a keystore.
         
-        This will make it necessary to decrpt again if it is going to be used later.
-        Has no effect if the entry has already been decrypted.
+        This will make it necessary to decrypt it again if it is going to be used later.
+        Has no effect if the entry is already encrypted.
         
         :param str key_password: The password to encrypt the entry with.
         """
         if not self.is_decrypted():
-            return self._encrypted
+            return
 
         encrypted_private_key = sun_crypto.jks_pkey_encrypt(self.pkey_pkcs8, key_password)
 
@@ -392,6 +392,10 @@ class KeyStore(AbstractKeystore):
           
         :raises DuplicateAliasException: If some of the
           entries have the same alias.
+        :raises UnsupportedKeyStoreTypeException: If the keystore is of
+          an unsupported type
+        :raises UnsupportedKeyStoreEntryTypeException: If some
+          of the keystore entries are unsupported (in this keystore type)
         """
         if store_type not in ['jks', 'jceks']:
             raise UnsupportedKeystoreTypeException("The Keystore Type '%s' is not supported" % store_type)
@@ -572,7 +576,7 @@ class KeyStore(AbstractKeystore):
         """
         Saves the keystore so that it can be read by other applications.
         
-        If any of the private keys is decrypted, it will be encrypted
+        If any of the private keys are unencrypted, they will be encrypted
         with the same password as the keystore.
         
         :param str store_password: Password for the created keystore 
