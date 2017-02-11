@@ -264,7 +264,7 @@ class BksOnlyTests(AbstractTest):
         """Checks that apply to BKS entries of any type"""
         self.assertEqual(entry.store_type, store_type)
         self.assertTrue(isinstance(entry.alias, py23basestring))
-        self.assertTrue(isinstance(entry.timestamp, int))
+        self.assertTrue(isinstance(entry.timestamp, (int, long)))
         self.assertTrue(isinstance(entry.cert_chain, list))
         self.assertTrue(all(isinstance(c, jks.bks.BksTrustedCertEntry) for c in entry.cert_chain))
 
