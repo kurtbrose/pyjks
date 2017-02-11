@@ -61,6 +61,15 @@ class UnexpectedAlgorithmException(KeystoreException):
 class UnexpectedKeyEncodingException(KeystoreException):
     """Signifies that a key was stored in an unexpected format or encoding."""
     pass
+class UnsupportedKeystoreTypeException(KeystoreException):
+    """Signifies that the keystore was an unsupported type."""
+    pass
+class UnsupportedKeystoreEntryTypeException(KeystoreException):
+    """Signifies that the keystore entry was an unsupported type."""
+    pass
+class UnsupportedKeyFormatException(KeystoreException):
+    """Signifies that the key format was an unsupported type."""
+    pass
 
 class AbstractKeystore(object):
     """
@@ -83,6 +92,15 @@ class AbstractKeystore(object):
                             try_decrypt_keys=try_decrypt_keys)
         return ret
 
+    def save(self, filename, store_password):
+        """
+        Convenience wrapper function; calls the :func:`saves` 
+        and saves the content to a file.
+        """
+        with open(filename, 'wb') as file:
+            keystore_bytes = self.saves(store_password)
+            file.write(keystore_bytes)
+
     @classmethod
     def _read_utf(cls, data, pos, kind=None):
         """
@@ -103,6 +121,20 @@ class AbstractKeystore(object):
         pos += 4
         return data[pos:pos+size], pos+size
 
+    @classmethod
+    def _write_utf(cls, text):
+        encoded_text = text.encode('utf-8')
+        size = len(encoded_text)
+        result = b2.pack(size)
+        result += encoded_text
+        return result
+
+    @classmethod
+    def _write_data(cls, data):
+        size = len(data)
+        result = b4.pack(size)
+        result += data
+        return result
 
 class AbstractKeystoreEntry(object):
     """Abstract superclass for keystore entries."""
@@ -111,6 +143,13 @@ class AbstractKeystoreEntry(object):
         self.store_type = kwargs.get("store_type")
         self.alias = kwargs.get("alias")
         self.timestamp = kwargs.get("timestamp")
+
+    @classmethod
+    def new(cls, alias):
+        """
+        Helper function to create a new KeyStoreEntry.
+        """
+        raise NotImplementedError("Abstract method")
 
     def is_decrypted(self):
         """
@@ -125,6 +164,14 @@ class AbstractKeystoreEntry(object):
         :param str key_password: The password to decrypt the entry with.
         :raises DecryptionFailureException: If the entry could not be decrypted using the given password.
         :raises UnexpectedAlgorithmException: If the entry was encrypted with an unknown or unexpected algorithm
+        """
+        raise NotImplementedError("Abstract method")
+
+    def encrypt(self, key_password):
+        """
+        Encrypts the entry using the given password, so that it can be saved.
+
+        :param str key_password: The password to encrypt the entry with.
         """
         raise NotImplementedError("Abstract method")
 

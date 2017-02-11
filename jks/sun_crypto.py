@@ -1,9 +1,24 @@
 # vim: set et ai ts=4 sts=4 sw=4:
+import os
 import hashlib
 from .util import *
 
 SUN_JKS_ALGO_ID = (1,3,6,1,4,1,42,2,17,1,1) # JavaSoft proprietary key-protection algorithm
 SUN_JCE_ALGO_ID = (1,3,6,1,4,1,42,2,19,1)   # PBE_WITH_MD5_AND_DES3_CBC_OID (non-published, modified version of PKCS#5 PBEWithMD5AndDES)
+
+def jks_pkey_encrypt(key, password_str):
+    """
+    Encrypts the private key with password protection algorithm used by JKS keystores.
+    """
+    password_bytes = password_str.encode('utf-16be') # Java chars are UTF-16BE code units
+    iv = os.urandom(20)
+
+    key = bytearray(key)
+    xoring = zip(key, _jks_keystream(iv, password_bytes))
+    data = bytearray([d^k for d,k in xoring])
+
+    check = hashlib.sha1(bytes(password_bytes + key)).digest()
+    return bytes(iv + data + check)
 
 def jks_pkey_decrypt(data, password_str):
     """

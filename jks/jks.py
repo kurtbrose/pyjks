@@ -30,8 +30,11 @@ import struct
 import ctypes
 import hashlib
 import javaobj
-from pyasn1.codec.ber import decoder
+import time
+from pyasn1.codec.ber import encoder, decoder
 from pyasn1_modules import rfc5208
+from pyasn1_modules.rfc2459 import AlgorithmIdentifier
+from pyasn1.type import univ, namedtype
 from . import rfc2898
 from . import sun_crypto
 from .util import *
@@ -60,6 +63,24 @@ class TrustedCertEntry(AbstractKeystoreEntry):
         """A byte string containing the actual certificate data. In the case of X.509 certificates, this is the DER-encoded
         X.509 representation of the certificate."""
 
+    @classmethod
+    def new(cls, alias, cert):
+        """
+        Helper function to create a new TrustedCertEntry.
+        
+        :param str alias: The alias for the Trusted Cert Entry
+        :param str certs: The certificate, as a byte string.
+
+        :returns: A loaded :class:`TrustedCertEntry` instance, ready
+          to be placed in a keystore.
+        """
+        timestamp = int(time.time()) * 1000
+
+        tke = cls(timestamp = timestamp,
+                               alias = alias,
+                               cert = cert)
+        return tke
+
     def is_decrypted(self):
         """Always returns ``True`` for this entry type."""
         return True
@@ -68,6 +89,9 @@ class TrustedCertEntry(AbstractKeystoreEntry):
         """Does nothing for this entry type; certificates are inherently public data and are not stored in encrypted form."""
         return
 
+    def encrypt(self, key_password):
+        """Does nothing for this entry type; certificates are inherently public data and are not stored in encrypted form."""
+        return
 
 class PrivateKeyEntry(AbstractKeystoreEntry):
     """Represents a private key entry in a JKS or JCEKS keystore (e.g. an RSA or DSA private key)."""
@@ -87,6 +111,63 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         self._pkey = kwargs.get("pkey")
         self._pkey_pkcs8 = kwargs.get("pkey_pkcs8")
         self._algorithm_oid = kwargs.get("algorithm_oid")
+
+    @classmethod
+    def new(cls, alias, certs, key, key_format='pkcs8'):
+        """
+        Helper function to create a new PrivateKeyEntry.
+        
+        :param str alias: The alias for the Private Key Entry
+        :param list certs: An list of certificates, as byte strings.
+          The first one should be the one belonging to the private key,
+          the others the chain (in correct order).
+        :param str key: A byte string containing the private key in the
+          format specified in the key_format parameter (default pkcs8).
+        :param str key_format: The format of the provided private key. 
+          Valid options are pkcs8 or rsa_raw. Defaults to pkcs8.
+
+        :returns: A loaded :class:`PrivateKeyEntry` instance, ready
+          to be placed in a keystore.
+        
+        :raises UnsupportedKeyFormatException: If the key format is
+          unsupported.
+        """
+        timestamp = int(time.time()) * 1000
+
+        cert_chain = []
+        for cert in certs:
+            cert_chain.append(('X.509', cert))
+
+        pke = cls(timestamp = timestamp,
+                               alias = alias,
+                               cert_chain = cert_chain)
+
+        if key_format == 'pkcs8':
+            private_key_info = decoder.decode(key, asn1Spec=rfc5208.PrivateKeyInfo())[0]
+
+            pke._algorithm_oid = private_key_info['privateKeyAlgorithm']['algorithm'].asTuple()
+            pke.pkey = private_key_info['privateKey'].asOctets()
+            pke.pkey_pkcs8 = key
+
+        elif key_format == 'rsa_raw':
+            pke._algorithm_oid = RSA_ENCRYPTION_OID
+
+            # We must encode it to pkcs8
+            private_key_info = rfc5208.PrivateKeyInfo()
+            private_key_info.setComponentByName('version','v1')
+            a = AlgorithmIdentifier()
+            a.setComponentByName('algorithm', pke._algorithm_oid)
+            a.setComponentByName('parameters', '\x05\x00')
+            private_key_info.setComponentByName('privateKeyAlgorithm', a)
+            private_key_info.setComponentByName('privateKey', key)
+
+            pke.pkey_pkcs8 = encoder.encode(private_key_info)
+            pke.pkey = key
+            
+        else:
+            raise UnsupportedKeyFormatException("Key Format '%s' is not supported" % key_format)
+
+        return pke
 
     def __getattr__(self, name):
         if not self.is_decrypted():
@@ -143,6 +224,32 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
         self._pkey_pkcs8 = plaintext
         self._algorithm_oid = algorithm_oid
 
+    def encrypt(self, key_password):
+        """
+        Encrypts the private key, so that it can be saved to a keystore.
+        
+        This will make it necessary to decrypt it again if it is going to be used later.
+        Has no effect if the entry is already encrypted.
+        
+        :param str key_password: The password to encrypt the entry with.
+        """
+        if not self.is_decrypted():
+            return
+
+        encrypted_private_key = sun_crypto.jks_pkey_encrypt(self.pkey_pkcs8, key_password)
+
+        a = AlgorithmIdentifier()
+        a.setComponentByName('algorithm', sun_crypto.SUN_JKS_ALGO_ID)
+        a.setComponentByName('parameters', '\x05\x00')
+        epki = rfc5208.EncryptedPrivateKeyInfo()
+        epki.setComponentByName('encryptionAlgorithm',a)
+        epki.setComponentByName('encryptedData', encrypted_private_key)
+
+        self._encrypted = encoder.encode(epki)
+        self._pkey = None
+        self._pkey_pkcs8 = None
+        self._algorithm_oid = None
+
     is_decrypted.__doc__ = AbstractKeystoreEntry.is_decrypted.__doc__
 
 
@@ -155,6 +262,18 @@ class SecretKeyEntry(AbstractKeystoreEntry):
         self._algorithm = kwargs.get("algorithm")
         self._key = kwargs.get("key")
         self._key_size = kwargs.get("key_size")
+
+    @classmethod
+    def new(cls, alias, sealed_obj, algorithm, key, key_size):
+        """
+        Helper function to create a new SecretKeyEntry.
+
+        :returns: A loaded :class:`SecretKeyEntry` instance, ready
+          to be placed in a keystore.
+        """
+        timestamp = int(time.time()) * 1000
+
+        raise NotImplementedError("Creating Secret Keys not implemented")
 
     def __getattr__(self, name):
         if not self.is_decrypted():
@@ -245,12 +364,57 @@ class SecretKeyEntry(AbstractKeystoreEntry):
 
     is_decrypted.__doc__ = AbstractKeystoreEntry.is_decrypted.__doc__
 
+    def encrypt(self, key_password):
+        """
+        Encrypts the Secret Key so that the keystore can be saved
+        """
+        raise NotImplementedError("Encrypting of Secret Keys not implemented")
+
 # --------------------------------------------------------------------------
 
 class KeyStore(AbstractKeystore):
     """
     Represents a loaded JKS or JCEKS keystore.
     """
+
+    @classmethod
+    def new(cls, store_type, store_entries):
+        """
+        Helper function to create a new KeyStore.
+
+        :param string store_type: What kind of keystore
+          the store should be. Valid options are jks or jceks.
+        :param list store_entries: Existing entries that
+          should be added to the keystore.
+        
+        :returns: A loaded :class:`KeyStore` instance,
+          with the specified entries.
+          
+        :raises DuplicateAliasException: If some of the
+          entries have the same alias.
+        :raises UnsupportedKeyStoreTypeException: If the keystore is of
+          an unsupported type
+        :raises UnsupportedKeyStoreEntryTypeException: If some
+          of the keystore entries are unsupported (in this keystore type)
+        """
+        if store_type not in ['jks', 'jceks']:
+            raise UnsupportedKeystoreTypeException("The Keystore Type '%s' is not supported" % store_type)
+
+        entries = {}
+        for entry in store_entries:
+            if not isinstance(entry, AbstractKeystoreEntry):
+                raise UnsupportedKeystoreEntryTypeException("Entries must be a KeyStore Entry")
+
+            if store_type != 'jceks' and isinstance(entry, SecretKeyEntry):
+                raise UnsupportedKeystoreEntryTypeException('Secret Key only allowed in JCEKS keystores')
+
+            alias = entry.alias
+
+            if alias in entries:
+                raise DuplicateAliasException("Found duplicate alias '%s'" % alias)
+            entries[alias] = entry
+
+        return cls(store_type, entries)
 
     @classmethod
     def loads(cls, data, store_password, try_decrypt_keys=True):
@@ -383,6 +547,77 @@ class KeyStore(AbstractKeystore):
             raise KeystoreSignatureException("Hash mismatch; incorrect keystore password?")
 
         return cls(store_type, entries)
+
+    @classmethod
+    def _write_private_key(cls, alias, item, key_password):
+        private_key_entry = b4.pack(1) # private key
+        private_key_entry += cls._write_utf(alias)
+        private_key_entry += b8.pack(item.timestamp)
+        item.encrypt(key_password)
+        private_key_entry += cls._write_data(item._encrypted)
+
+        private_key_entry += b4.pack(len(item.cert_chain))
+        for cert in item.cert_chain:
+            private_key_entry += cls._write_utf(cert[0])
+            private_key_entry += cls._write_data(cert[1])
+
+        return private_key_entry
+
+    @classmethod
+    def _write_trusted_cert(cls, alias, item):
+        trusted_cert = b4.pack(2) # trusted cert
+        trusted_cert += cls._write_utf(alias)
+        trusted_cert += b8.pack(item.timestamp)
+        trusted_cert += cls._write_utf('X.509')
+        trusted_cert += cls._write_data(item.cert)
+        return trusted_cert
+
+    def saves(self, store_password):
+        """
+        Saves the keystore so that it can be read by other applications.
+        
+        If any of the private keys are unencrypted, they will be encrypted
+        with the same password as the keystore.
+        
+        :param str store_password: Password for the created keystore 
+          (and for any unencrypted keys)
+
+        :returns: A byte string representation of the keystore.
+
+        :raises UnsupportedKeystoreTypeException: If the keystore 
+          is of an unsupported type
+        :raises UnsupportedKeystoreEntryTypeException: If the keystore
+          contains an unsupported entry type
+        """
+
+        if self.store_type == 'jks':
+            keystore = MAGIC_NUMBER_JKS
+        elif self.store_type == 'jceks':
+            raise NotImplementedError("Saving of JCEKS keystores is not implemented")
+        else:
+            raise UnsupportedKeystoreTypeException("Only JKS and JCEKS keystores are supported")
+
+        keystore += b4.pack(2) # version 2
+        keystore += b4.pack(len(self.entries))
+
+        for alias, item in self.entries.items():
+            if isinstance(item, TrustedCertEntry):
+                keystore += self._write_trusted_cert(alias, item)
+            elif isinstance(item, PrivateKeyEntry):
+                keystore += self._write_private_key(alias, item, store_password)
+            elif isinstance(item, SecretKeyEntry):
+                if self.store_type != 'jceks':
+                    raise UnsupportedKeystoreEntryTypeException('Secret Key only allowed in JCEKS keystores')
+                raise NotImplementedError("Saving of Secret Keys not implemented")
+            else:
+                raise UnsupportedKeystoreEntryTypeException("Unknown entry type in keystore")
+
+        hash_fn = hashlib.sha1
+        store_password_utf16 = store_password.encode('utf-16be')
+        hash = hash_fn(store_password_utf16 + SIGNATURE_WHITENING + keystore).digest()
+        keystore += hash
+
+        return keystore
 
     def __init__(self, store_type, entries):
         super(KeyStore, self).__init__(store_type, entries)
