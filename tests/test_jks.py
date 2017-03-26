@@ -6,15 +6,22 @@ Note: run 'mvn test' in the tests/java directory to reproduce keystore files (re
 """
 
 from __future__ import print_function
-import os, sys
-import jks
+import os
+import sys
 import unittest
 import hashlib
-from . import expected
+
+import jks
 from jks.util import py23basestring
+from . import expected
 
 CUR_PATH = os.path.dirname(os.path.abspath(__file__))
 KS_PATH = os.path.join(CUR_PATH, 'keystores')
+
+try:
+    long
+except:
+    long = int
 
 
 class AbstractTest(unittest.TestCase):
