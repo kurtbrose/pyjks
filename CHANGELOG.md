@@ -1,6 +1,21 @@
 # PyJKS Changelog
 
-Since August 14, 2013 there have been 2 releases and 107 commits.
+Since August 14, 2013 there have been 4 releases and 146 commits for an
+average of one 36-commit release every year.
+
+v17.0.0
+-------
+*(March 26, 2017)*
+
+First public release, now featuring documentation and support for
+creating and saving JKS keystores. Big thanks to Magnus Watn and
+voetsjoeba for making this possible!
+
+* `version` attribute on BksKeyStore and UberKeyStore
+* Documentation across several modules
+* Factored out common AbstractKeystore superclass
+* JKS creation and saving using the new `save()` method of KeyStore
+  objects.
 
 v0.5.1
 ------
