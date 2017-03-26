@@ -44,7 +44,7 @@ try:
 except ImportError:
     from io import BytesIO  # python3
 
-__version_info__ = (0, 5, 2, 'dev')
+__version_info__ = (17, 0, 0)
 __version__ = ".".join(str(x) for x in __version_info__ if str(x))
 
 MAGIC_NUMBER_JKS = b4.pack(0xFEEDFEED)
@@ -67,7 +67,7 @@ class TrustedCertEntry(AbstractKeystoreEntry):
     def new(cls, alias, cert):
         """
         Helper function to create a new TrustedCertEntry.
-        
+
         :param str alias: The alias for the Trusted Cert Entry
         :param str certs: The certificate, as a byte string.
 
@@ -116,19 +116,19 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
     def new(cls, alias, certs, key, key_format='pkcs8'):
         """
         Helper function to create a new PrivateKeyEntry.
-        
+
         :param str alias: The alias for the Private Key Entry
         :param list certs: An list of certificates, as byte strings.
           The first one should be the one belonging to the private key,
           the others the chain (in correct order).
         :param str key: A byte string containing the private key in the
           format specified in the key_format parameter (default pkcs8).
-        :param str key_format: The format of the provided private key. 
+        :param str key_format: The format of the provided private key.
           Valid options are pkcs8 or rsa_raw. Defaults to pkcs8.
 
         :returns: A loaded :class:`PrivateKeyEntry` instance, ready
           to be placed in a keystore.
-        
+
         :raises UnsupportedKeyFormatException: If the key format is
           unsupported.
         """
@@ -163,7 +163,7 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
 
             pke.pkey_pkcs8 = encoder.encode(private_key_info)
             pke.pkey = key
-            
+
         else:
             raise UnsupportedKeyFormatException("Key Format '%s' is not supported" % key_format)
 
@@ -227,10 +227,10 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
     def encrypt(self, key_password):
         """
         Encrypts the private key, so that it can be saved to a keystore.
-        
+
         This will make it necessary to decrypt it again if it is going to be used later.
         Has no effect if the entry is already encrypted.
-        
+
         :param str key_password: The password to encrypt the entry with.
         """
         if not self.is_decrypted():
@@ -386,10 +386,10 @@ class KeyStore(AbstractKeystore):
           the store should be. Valid options are jks or jceks.
         :param list store_entries: Existing entries that
           should be added to the keystore.
-        
+
         :returns: A loaded :class:`KeyStore` instance,
           with the specified entries.
-          
+
         :raises DuplicateAliasException: If some of the
           entries have the same alias.
         :raises UnsupportedKeyStoreTypeException: If the keystore is of
@@ -575,16 +575,16 @@ class KeyStore(AbstractKeystore):
     def saves(self, store_password):
         """
         Saves the keystore so that it can be read by other applications.
-        
+
         If any of the private keys are unencrypted, they will be encrypted
         with the same password as the keystore.
-        
-        :param str store_password: Password for the created keystore 
+
+        :param str store_password: Password for the created keystore
           (and for any unencrypted keys)
 
         :returns: A byte string representation of the keystore.
 
-        :raises UnsupportedKeystoreTypeException: If the keystore 
+        :raises UnsupportedKeystoreTypeException: If the keystore
           is of an unsupported type
         :raises UnsupportedKeystoreEntryTypeException: If the keystore
           contains an unsupported entry type
