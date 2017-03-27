@@ -15,7 +15,9 @@ voetsjoeba for making this possible!
 * Documentation across several modules
 * Factored out common AbstractKeystore superclass
 * JKS creation and saving using the new `save()` method of KeyStore
-  objects.
+  objects. See the
+  [Examples doc](http://pyjks.readthedocs.io/en/latest/examples.html)
+  for a demo.
 
 v0.5.1
 ------
