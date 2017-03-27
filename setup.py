@@ -19,7 +19,7 @@ Then::
   print(ks.secret_keys)
 
 And that's barely scratching the surface. Check out `the usage examples on
-GitHub <https://github.com/doublereedkurt/pyjks#usage-examples>`_ for
+GitHub <https://github.com/kurtbrose/pyjks#usage-examples>`_ for
 more!
 
 """
@@ -35,7 +35,7 @@ setup(
     description='Pure-Python Java Keystore (JKS) library',
     keywords="JKS JCEKS java keystore security ssl",
     license="MIT",
-    url="http://github.com/doublereedkurt/pyjks",
+    url="http://github.com/kurtbrose/pyjks",
     long_description=__doc__,
     classifiers=[
         'Development Status :: 4 - Beta',

@@ -40,7 +40,7 @@ Support more keystore formats and fix a couple issues.
 * Created this CHANGELOG.
 
 [bc]: https://www.bouncycastle.org/
-[i21]: https://github.com/doublereedkurt/pyjks/issues/21
+[i21]: https://github.com/kurtbrose/pyjks/issues/21
 
 v0.4.0
 ------
