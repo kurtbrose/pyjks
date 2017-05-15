@@ -17,7 +17,7 @@ This is better:
  * pyasn1 0.1.7+
  * pyasn1_modules 0.0.8+
  * javaobj-py3 0.1.4+
- * pycrypto, if you need to read JCEKS, BKS or UBER keystores
+ * pycryptodome, if you need to read JCEKS, BKS or UBER keystores
  * twofish, if you need to read UBER keystores
 
 ## Usage examples:
