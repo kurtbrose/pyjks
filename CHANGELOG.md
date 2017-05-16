@@ -1,7 +1,16 @@
 # PyJKS Changelog
 
-Since August 14, 2013 there have been 4 releases and 146 commits for an
-average of one 36-commit release every year.
+Since August 14, 2013 there have been 5 releases and 159 commits for an
+average of one 32 commits per release.
+
+v17.1.0
+-------
+*(May 15, 2017)*
+
+No API changes with PyJKS itself. This release switches PyJKS to rely
+on [pycryptodome](https://github.com/Legrandin/pycryptodome), a
+maintained fork of [pycrypto](https://github.com/dlitz/pycrypto). This
+upstream dependency has wheels, so installs should be less painless.
 
 v17.0.0
 -------
