@@ -50,7 +50,7 @@ setup(
         'Programming Language :: Python :: 3.5',
         'Programming Language :: Python :: Implementation :: PyPy',
     ],
-    packages=find_packages(),
+    packages=find_packages(exclude=['tests']),
     install_requires=['pyasn1',
                       'pyasn1_modules',
                       'javaobj-py3',
