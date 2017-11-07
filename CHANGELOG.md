@@ -1,7 +1,13 @@
 # PyJKS Changelog
 
-Since August 14, 2013 there have been 5 releases and 159 commits for an
-average of one 32 commits per release.
+Since August 14, 2013 there have been 6 releases and 165 commits for an
+average of 27 commits per release.
+
+v17.1.1
+-------
+*(November 6, 2017)*
+
+Fix packaging with a MANIFEST.in. See #35 for details.
 
 v17.1.0
 -------
