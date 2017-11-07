@@ -44,7 +44,7 @@ try:
 except ImportError:
     from io import BytesIO  # python3
 
-__version_info__ = (17, 1, 1, 'dev')
+__version_info__ = (17, 1, 1)
 __version__ = ".".join(str(x) for x in __version_info__ if str(x))
 
 MAGIC_NUMBER_JKS = b4.pack(0xFEEDFEED)
