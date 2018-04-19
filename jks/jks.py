@@ -77,7 +77,8 @@ class TrustedCertEntry(AbstractKeystoreEntry):
         timestamp = int(time.time()) * 1000
 
         tke = cls(timestamp = timestamp,
-                               alias = alias,
+                               # Alias must be lower case or it will corrupt the keystore for Java Keytool and Keytool Explorer
+                               alias = alias.lower(),
                                cert = cert)
         return tke
 
@@ -139,7 +140,8 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
             cert_chain.append(('X.509', cert))
 
         pke = cls(timestamp = timestamp,
-                               alias = alias,
+                               # Alias must be lower case or it will corrupt the keystore for Java Keytool and Keytool Explorer
+                               alias = alias.lower(),
                                cert_chain = cert_chain)
 
         if key_format == 'pkcs8':
