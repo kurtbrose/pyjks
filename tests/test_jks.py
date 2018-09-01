@@ -284,6 +284,18 @@ class JksTests(AbstractTest):
         sk = self.find_secret_key(store, "mykey")
         self.assertRaises(jks.util.UnsupportedKeystoreEntryTypeException, jks.KeyStore.new, 'jks', [sk])
 
+    def test_alias_lower_certificate(self):
+        cert = jks.TrustedCertEntry.new('CERT', expected.RSA2048_3certs.certs[0])
+        keystore = jks.KeyStore.new('jks', [cert])
+        alias = list(keystore.certs.keys())[0]
+        self.assertTrue(alias.islower())
+
+    def test_alias_lower_pkey(self):
+        pkey = jks.PrivateKeyEntry.new('PKEY', expected.RSA2048_3certs.certs, expected.RSA2048_3certs.private_key)
+        keystore = jks.KeyStore.new('jks', [pkey])
+        alias = list(keystore.private_keys.keys())[0]
+        self.assertTrue(alias.islower())
+
 class JceTests(AbstractTest):
     def test_empty_store(self):
         store = jks.KeyStore.load(KS_PATH + "/jceks/empty.jceks", "")
