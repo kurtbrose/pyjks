@@ -1,7 +1,23 @@
 # PyJKS Changelog
 
-Since August 14, 2013 there have been 6 releases and 165 commits for an
-average of 27 commits per release.
+Since August 14, 2013 there have been 7 releases and 176 commits for an
+average of 25 commits per release.
+
+v18.0.0
+-------
+*(September 1, 2018)*
+
+A smallish bugfix release:
+
+* Adjusted asn1 encoding so that empty attributes are not included
+  (fixes [#34][i34])
+* Automatically convert aliases to lowercase for keytool compatibility
+  (fixes [#38][i38])
+
+Note that PyJKS now relies on PyASN1 0.3.5+ (released 2017-09-16).
+
+[i34]: https://github.com/kurtbrose/pyjks/issues/34
+[i38]: https://github.com/kurtbrose/pyjks/issues/38
 
 v17.1.1
 -------
