@@ -161,7 +161,7 @@ class PrivateKeyEntry(AbstractKeystoreEntry):
             private_key_info.setComponentByName('privateKeyAlgorithm', a)
             private_key_info.setComponentByName('privateKey', key)
 
-            pke.pkey_pkcs8 = encoder.encode(private_key_info)
+            pke.pkey_pkcs8 = encoder.encode(private_key_info, ifNotEmpty=True)
             pke.pkey = key
 
         else:
