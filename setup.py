@@ -68,10 +68,10 @@ Releasing:
 * Update __version__ and __version_info__ in jks.py
 * Final test (currently, tox)
 * Commit: "bumping version for x.x.x release"
-* Run: python setup.py sdist upload
+* Run: python setup.py sdist bdist_wheel upload
 * git tag -a vx.x.x -m "summary"
 * Update CHANGELOG.md
-* Update versions again
+* Update versions again for dev
 * Commit: "bumping version for x.x.x+1 dev"
 * git push && git push --tags
 """
