@@ -1,7 +1,12 @@
-# PyJKS Changelog
+# PyJKS CHANGELOG
 
-Since August 14, 2013 there have been 7 releases and 176 commits for an
-average of 25 commits per release.
+Broadly speaking, the PyJKS has been stable since 2017. The JKS
+formats themselves do not change rapidly, either. The original author
+no longer uses JKS on a daily basis, but the team is happy to respond
+to issues, review PRs, and make new releases as new features are
+submitted by active PyJKS users.
+
+PyJKS uses the [CalVer](https://calver.org) versioning scheme (`YY.MINOR.MICRO`).
 
 v19.0.0
 -------
