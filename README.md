@@ -4,7 +4,7 @@ pyjks
 <a href="https://pyjks.readthedocs.io/en/latest/"><img src="https://img.shields.io/badge/docs-latest-brightgreen.svg?style=flat"></a>
 <a href="https://pypi.python.org/pypi/pyjks"><img src="https://img.shields.io/pypi/v/pyjks.svg"></a>
 <a href="http://calver.org"><img src="https://img.shields.io/badge/calver-YY.MINOR.MICRO-22bfda.svg"></a>
-<a href="https://github.com/mahmoud/pyjks/blob/master/CHANGELOG.md"><img src="https://img.shields.io/badge/CHANGELOG-UPDATED-b84ad6.svg"></a>
+<a href="https://github.com/kurtbrose/pyjks/blob/master/CHANGELOG.md"><img src="https://img.shields.io/badge/CHANGELOG-UPDATED-b84ad6.svg"></a>
 
 A pure python Java KeyStore file parser, including private/secret key decryption.
 Can read JKS, JCEKS, BKS and UBER (BouncyCastle) key stores.
