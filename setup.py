@@ -29,7 +29,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='pyjks',
-    version='18.0.1dev',
+    version='19.0.0',
     author="Kurt Rose, Jeroen De Ridder",
     author_email="kurt@kurtrose.com",
     description='Pure-Python Java Keystore (JKS) library',
@@ -64,8 +64,7 @@ setup(
 """
 Releasing:
 
-* Update version in setup.py
-* Update __version__ and __version_info__ in jks.py
+* Update version in setup.py, as well as __version__ and __version_info__ in jks.py
 * Final test (currently, tox)
 * Commit: "bumping version for x.x.x release"
 * Run: python setup.py sdist bdist_wheel upload
