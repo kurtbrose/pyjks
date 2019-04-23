@@ -3,7 +3,7 @@ import struct
 import hashlib
 from pyasn1.codec.ber import decoder
 from pyasn1_modules import rfc5208, rfc2459
-from Crypto.Hash import HMAC, SHA
+from Cryptodome.Hash import HMAC, SHA
 
 from .util import *
 from .jks import KeyStore, TrustedCertEntry

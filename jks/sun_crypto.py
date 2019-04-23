@@ -65,7 +65,7 @@ def jce_pbe_decrypt(data, password, salt, iteration_count):
     """
     key, iv = _jce_pbe_derive_key_and_iv(password, salt, iteration_count)
 
-    from Crypto.Cipher import DES3
+    from Cryptodome.Cipher import DES3
     des3 = DES3.new(key, DES3.MODE_CBC, IV=iv)
     padded = des3.decrypt(data)
 
