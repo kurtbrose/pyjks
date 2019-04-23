@@ -3,6 +3,16 @@
 Since August 14, 2013 there have been 7 releases and 176 commits for an
 average of 25 commits per release.
 
+v19.0.0
+-------
+*(April 22, 2019)*
+
+A small update, switching to [pycryptodomex][pycryptodomex], for users who may also
+need pycrypto for 3rd-party libraries. [#46][i46]
+
+[pycryptodomex]: https://pycryptodome.readthedocs.io/en/latest/src/installation.html
+[i46]: https://github.com/kurtbrose/pyjks/pull/46
+
 v18.0.0
 -------
 *(September 1, 2018)*
