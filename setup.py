@@ -29,7 +29,7 @@ from setuptools import setup, find_packages
 
 setup(
     name='pyjks',
-    version='19.0.0',
+    version='19.0.1dev',
     author="Kurt Rose, Jeroen De Ridder",
     author_email="kurt@kurtrose.com",
     description='Pure-Python Java Keystore (JKS) library',
