@@ -3,7 +3,7 @@ from __future__ import print_function
 import hashlib
 import ctypes
 from pyasn1.type import univ, namedtype
-from Crypto.Cipher import DES3
+from Cryptodome.Cipher import DES3
 from .util import xor_bytearrays, add_pkcs7_padding, strip_pkcs7_padding, BadDataLengthException
 
 PBE_WITH_SHA1_AND_TRIPLE_DES_CBC_OID = (1,2,840,113549,1,12,1,3)
