@@ -14,9 +14,9 @@ Then::
 
   keystore = jks.KeyStore.load('keystore.jks', 'passphrase')
 
-  print(ks.private_keys)
-  print(ks.certs)
-  print(ks.secret_keys)
+  print(keystore.private_keys)
+  print(keystore.certs)
+  print(keystore.secret_keys)
 
 And that's barely scratching the surface. Check out `the usage examples on
 GitHub <https://github.com/kurtbrose/pyjks#usage-examples>`_ for
