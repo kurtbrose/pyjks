@@ -27,6 +27,16 @@ You can install ``pyjks`` with ``pip``:
 
     $ pip install pyjks
 
+If you receive an error like:
+
+.. code-block:: console
+
+    error: Microsoft Visual C++ 14.0 is required. Get it with "Microsoft Visual C++ Build Tools": https://visualstudio.microsoft.com/downloads/
+
+on Windows you will need to download the Visual C++ build tools by visiting https://visualstudio.microsoft.com/thank-you-downloading-visual-studio/?sku=BuildTools&rel=16
+
+Save the file, then run it. Choose "Workloads" tab, then select the "C++ build tools". Under the "Optional" installed items, be certain to select all of ``MSVC vxxx - VS 2019 C++ build tools``, ``Windows 10 SDK`` (latest version), and ``C++/CLI support for build tools``.  Reboot, then run the ``pip`` command again.
+
 Contents:
 ---------
 
