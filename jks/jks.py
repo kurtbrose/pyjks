@@ -533,6 +533,10 @@ class KeyStore(AbstractKeystore):
         except struct.error as e:
             raise BadKeystoreFormatException(e)
 
+        # skip integrity check if no password is provided
+        if store_password is None:
+            return cls(store_type, entries)
+
         # check keystore integrity (uses UTF-16BE encoding of the password)
         hash_fn = hashlib.sha1
         hash_digest_size = hash_fn().digest_size

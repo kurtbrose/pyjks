@@ -73,6 +73,11 @@ class JksTests(AbstractTest):
         self.assertEqual(store.store_type, "jks")
         self.assertEqual(len(store.entries), 0)
 
+    def test_store_without_passphrase(self):
+        store = jks.KeyStore.load(KS_PATH + "/jks/truststore.jks", None)
+        self.assertEqual(store.store_type, "jks")
+        self.assertEqual(len(store.entries), 2)
+
     def test_bad_keystore_format(self):
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\x00\x00\x00\x00", "") # bad magic bytes
         self.assertRaises(jks.util.BadKeystoreFormatException, jks.KeyStore.loads, b"\xFE\xED\xFE\xED\x00", "") # insufficient store version bytes
