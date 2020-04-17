@@ -533,7 +533,7 @@ class KeyStore(AbstractKeystore):
         except struct.error as e:
             raise BadKeystoreFormatException(e)
 
-        # skip integrity check if empty password is provided
+        # skip integrity check if no password is provided
         if store_password is None:
             return cls(store_type, entries)
 
