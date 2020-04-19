@@ -8,6 +8,16 @@ submitted by active PyJKS users.
 
 PyJKS uses the [CalVer](https://calver.org) versioning scheme (`YY.MINOR.MICRO`).
 
+v20.0.0
+-------
+*(April 18, 2020)*
+
+* Mirrors keytool support for keystores with empty passphrases [#57][i57]
+* Add Python 3.7 and 3.8 to support matrix
+* Docs and examples fixes
+
+[i46]: https://github.com/kurtbrose/pyjks/pull/57
+
 v19.0.0
 -------
 *(April 22, 2019)*
