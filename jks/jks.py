@@ -300,7 +300,11 @@ class SecretKeyEntry(AbstractKeystoreEntry):
 
         plaintext = None
         sealed_obj = self._encrypted
-        if sealed_obj.sealAlg == "PBEWithMD5AndTripleDES":
+        #In python 2.7.x many issues have occured where comparison between 'JavaString' & 'str' have failed.
+        #https://github.com/kurtbrose/pyjks/issues/60, https://github.com/kurtbrose/pyjks/issues/47
+        #type cast sealed_obj.sealAlg which is of type <class 'javaobj.v1.beans.JavaString'> to <type 'str'>
+        #So, that 'String' to 'String' comparison is performed and not 'JavaString' to 'String'
+        if str(sealed_obj.sealAlg) == "PBEWithMD5AndTripleDES":  
             # if the object was sealed with PBEWithMD5AndTripleDES
             # then the parameters should apply to the same algorithm
             # and not be empty or null
