@@ -57,8 +57,7 @@ setup(
     install_requires=['pyasn1>=0.3.5',
                       'pyasn1_modules',
                       'javaobj-py3',
-                      'pycryptodomex',
-                      'twofish'],
+                      'pycryptodomex'],
     test_suite="tests.test_jks",
 )
 
