@@ -56,9 +56,10 @@ setup(
     packages=find_packages(exclude=['tests']),
     install_requires=['pyasn1>=0.3.5',
                       'pyasn1_modules',
-                      'javaobj-py3',
-                      'pycryptodomex',
-                      'twofish'],
+                      'javaobj-py3'],
+    extras_require={
+          'twofish': ['twofish'],
+        },
     test_suite="tests.test_jks",
 )
 
